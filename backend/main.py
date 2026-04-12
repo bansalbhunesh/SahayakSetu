@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
-from openai import OpenAI
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # Load environment
@@ -15,22 +15,24 @@ load_dotenv()
 # Configuration
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-CHAT_MODEL = "gpt-4o-mini"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+CHAT_MODEL = "gemini-1.5-flash"
 
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 # Tell Qdrant to use local LIGHTWEIGHT embeddings (Safe for 512MB Render Tier)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+# Initialize Gemini
+genai.configure(api_key=GEMINI_API_KEY)
+llm_model = genai.GenerativeModel(CHAT_MODEL)
 
 app = FastAPI(title="SahayakSetu API")
 
 # STARTUP VALIDATION: Ensure demo doesn't fail due to env issues
 @app.on_event("startup")
 async def startup_event():
-    required_vars = ["QDRANT_URL", "QDRANT_API_KEY", "OPENAI_API_KEY"]
+    required_vars = ["QDRANT_URL", "QDRANT_API_KEY", "GEMINI_API_KEY"]
     for var in required_vars:
         if not os.getenv(var):
             print(f"❌ CRITICAL ERROR: Missing environment variable: {var}")
@@ -38,7 +40,7 @@ async def startup_event():
     
     print("🚀 SahayakSetu Backend Initialized")
     print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
-    print(f"🤖 MODEL: {CHAT_MODEL}")
+    print(f"🤖 MODEL: {CHAT_MODEL} (Google Gemini)")
     print(f"🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
 
 app.add_middleware(
@@ -108,8 +110,8 @@ async def vapi_webhook(request: Request):
             "assistant": {
                 "name": "SahayakSetu",
                 "model": {
-                    "provider": "openai",
-                    "model": "gpt-4o-mini",
+                    "provider": "google",
+                    "model": "gemini-1.5-flash-latest",
                     "systemPrompt": SYSTEM_PROMPT,
                     "temperature": 0.7
                 },
@@ -142,16 +144,11 @@ async def api_search(data: SearchQuery):
         
         print(f"🔍 [WEB SEARCH] Query: {data.query} | Found {len(confident_results)} confident chunks")
         
-        # Generate Answer
-        response = openai_client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context:\n{context if context else 'FALLBACK: No relevant info found.'}\n\nQuestion: {data.query}"}
-            ]
-        )
+        # Generate Answer using Gemini
+        full_prompt = f"{SYSTEM_PROMPT}\n\nContext:\n{context if context else 'FALLBACK: No relevant info found.'}\n\nQuestion: {data.query}"
+        response = llm_model.generate_content(full_prompt)
         
-        answer = response.choices[0].message.content
+        answer = response.text
         
         return {
             "answer": answer,

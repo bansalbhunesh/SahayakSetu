@@ -20,7 +20,7 @@
 We use an innovative **Translation-Aware RAG Architecture** that allows us to support dozens of languages with zero cloud memory crashes.
 
 1.  **Voice Input**: The user speaks to the AI in their native language (Hindi, Kannada, etc.).
-2.  **Intent Translation**: GPT-4o-mini interprets the spoken intent and translates it into a precise English keyword.
+2.  **Intent Interpretation**: **Google Gemini 1.5 Flash** interprets the spoken intent and translates it into a precise English keyword.
 3.  **Semantic Search**: We use **FastEmbed** and **Qdrant** to find matching scheme data from 60+ verified chunks.
 4.  **Actionable Answer**: The AI synthesizes the answer back into the user's native tongue.
 5.  **Voice Feedback**: The final response is spoken back via high-quality neural voices.
@@ -35,7 +35,7 @@ SahayakSetu directly addresses **Hackblr Challenge #3**. Most portals are text-h
 - **Coverage**: English, Hindi, Kannada, Tamil, Telugu, Bengali, Hinglish.
 
 ### 2. Zero-Cost RAG Scaling
-- **Innovation**: Utilizing **FastEmbed** for local vector generation eliminated all external embedding API costs, making the solution free to scale.
+- **Innovation**: Utilizing **FastEmbed** for local vector generation and **Google Gemini 1.5 Flash (Free Tier)** eliminated all external API costs.
 
 ### 3. Actionable Welfare Access
 - We provide a clear **Summary ➔ Eligibility ➔ Action Steps** to ensure welfare reaches the last mile.
@@ -46,7 +46,7 @@ SahayakSetu directly addresses **Hackblr Challenge #3**. Most portals are text-h
 | Layer | Technology |
 | :--- | :--- |
 | **Voice / STT / TTS** | [Vapi.ai](https://vapi.ai) with Deepgram & Azure Neural Voices |
-| **Intelligence** | GPT-4o-mini (Optimized for low-latency) |
+| **Intelligence** | **Google Gemini 1.5 Flash** (Zero-cost, high-performance) |
 | **Vector Database** | [Qdrant Cloud](https://qdrant.tech/) |
 | **Embedding Engine** | **FastEmbed** (BAAI/bge-small-en-v1.5) |
 | **Backend** | FastAPI (Python 3.12) |
@@ -63,7 +63,7 @@ SahayakSetu directly addresses **Hackblr Challenge #3**. Most portals are text-h
    ```
 
 2. **Environment Setup** (Create a `.env` in `backend/`)
-   - `OPENAI_API_KEY`
+   - `GEMINI_API_KEY`
    - `QDRANT_URL` & `QDRANT_API_KEY`
    - `VAPI_API_KEY`
 
