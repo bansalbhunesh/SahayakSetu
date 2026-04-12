@@ -12,8 +12,8 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 # Initialize Client
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
-# Use the one true Multilingual Model established in ingest.py and main.py
-MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# Use the one true stable Model (Cloud Optimized)
+MODEL = "BAAI/bge-small-en-v1.5"
 qdrant.set_model(MODEL)
 
 def test_search(query: str):
