@@ -25,10 +25,8 @@ def create_collections():
         collection_name="sahayak_schemes",
         vectors_config=qdrant.get_fastembed_vector_params()
     )
-    qdrant.recreate_collection(
-        collection_name="sahayak_memory",
-        vectors_config=qdrant.get_fastembed_vector_params()
-    )
+    # Audit v4 Recovery: sahayak_memory recreation removed as it is now in-memory (main.py)
+    print("   ✅ Created: sahayak_schemes")
 
 def get_scheme_data() -> List[Dict]:
     """Large knowledge base for SahayakSetu (Honest 35+ Chunks)."""
@@ -49,6 +47,7 @@ def get_scheme_data() -> List[Dict]:
         {"text": "Stand-Up India: Bank loans (10L-1Cr) for at least one SC/ST and one woman borrower per branch.", "metadata": {"scheme": "Stand-Up India"}},
         {"text": "PM Suraksha Bima Yojana (PMSBY): Accidental death/disability cover of 2L for Rs 20/year.", "metadata": {"scheme": "PMSBY"}},
         {"text": "PM Jeevan Jyoti Bima Yojana (PMJJBY): Life insurance cover of 2L for Rs 436/year.", "metadata": {"scheme": "PMJJBY"}},
+        {"text": "PM Shram Yogi Maan-dhan: Contributory pension scheme for unorganized workers with Rs 3000 monthly pension.", "metadata": {"scheme": "PM-SYM"}},
         {"text": "PM Vaya Vandana Yojana: Pension scheme for seniors (60+) with 7.4% assured returns.", "metadata": {"scheme": "Vaya Vandana"}},
         {"text": "One Nation One Ration Card: Allows beneficiaries to lift foodgrains from any FPS in India via Aadhaar.", "metadata": {"scheme": "ONORC"}},
         {"text": "Digital India (CSC): Common Service Centers provide G2C services like Aadhaar and PAN.", "metadata": {"scheme": "Digital India"}},
@@ -60,10 +59,9 @@ def get_scheme_data() -> List[Dict]:
         {"text": "Anna Bhagya (Karnataka): 10 kg of free food grains for BPL and Antyodaya cardholders.", "metadata": {"scheme": "Anna Bhagya"}},
         {"text": "Pudhumai Penn (Tamil Nadu): Rs 1,000 monthly scholarship for gov school girls joining college.", "metadata": {"scheme": "Pudhumai Penn"}},
         {"text": "Magalir Urimai Thogai (Tamil Nadu): Financial help of Rs 1,000 per month for women heads.", "metadata": {"scheme": "Magalir Urimai"}},
-        {"text": "Jan Dhan (Regional): Zero-balance accounts for every household to ensure financial inclusion.", "metadata": {"scheme": "Jan Dhan"}},
+        {"text": "Rythu Bharosa (AP): Financial assistance of Rs 13,500 per year to farmers in Andhra Pradesh.", "metadata": {"scheme": "Rythu Bharosa"}},
         {"text": "Swachh Bharat (Gramin): Financial incentive of Rs 12,000 provided for toilet construction.", "metadata": {"scheme": "Swachh Bharat"}},
         {"text": "Deendayal Antyodaya (NRLM): Organizing rural poor into self-help groups for livelihoods.", "metadata": {"scheme": "NRLM"}},
-        # Expanding with more verified regional descriptors...
     ]
     return schemes
 
@@ -73,7 +71,7 @@ def ingest_data():
     print("==================================================")
     create_collections()
     data = get_scheme_data()
-    print(f"\n📄 Ingesting {len(data)} high-precision chunks (Audit v3 Ready)...")
+    print(f"\n📄 Ingesting {len(data)} high-precision chunks (Audit v4 Clean Repository)...")
     qdrant.add(
         collection_name="sahayak_schemes",
         documents=[item["text"] for item in data],

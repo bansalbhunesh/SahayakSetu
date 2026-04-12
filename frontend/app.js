@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════
    SahayakSetu — Frontend Application Logic
-   Handles Vapi voice integration + text fallback
-   Advanced Script-Aware TTS Restoration (Audit v3)
+   Handles Vapi voice integration + Browser Fallback
+   Audit v4 Stability Restoration
    ══════════════════════════════════════════════════ */
 
 // ── Configuration ──────────────────────────────────
@@ -39,7 +39,7 @@ function initVapi() {
             setupVapiEvents();
             updateStatus("Ready", "green");
         } else setTimeout(initVapi, 500);
-    } catch (err) { updateStatus("Voice Error", "red"); }
+    } catch (err) { updateStatus("Voice unavailable", "yellow"); }
 }
 
 function setupVapiEvents() {
@@ -62,8 +62,56 @@ function setupVapiEvents() {
 }
 
 function toggleVoice() {
-    if (isCallActive) vapiInstance.stop();
-    else vapiInstance.start(VAPI_ASSISTANT_ID);
+    /** Audit v4 Restoration: Safety null-checks and Browser Fallback */
+    if (isCallActive) {
+        if (vapiInstance) vapiInstance.stop();
+        isCallActive = false;
+        updateVoiceUI(false);
+        updateStatus("Ready", "green");
+    } else {
+        if (vapiInstance && VAPI_ASSISTANT_ID !== "YOUR_VAPI_ASSISTANT_ID") {
+            vapiInstance.start(VAPI_ASSISTANT_ID);
+        } else {
+            startBrowserSpeech(); // Safety net
+        }
+    }
+}
+
+function startBrowserSpeech() {
+    /** Audit v4 Restoration: Browser speech recognition safety net */
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        addMessage("assistant", "Sorry, voice recognition is not supported in this browser.");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = currentLanguage;
+    recognition.start();
+
+    updateStatus("Listening...", "green");
+    updateVoiceUI(true);
+    isCallActive = true;
+
+    recognition.onresult = (event) => {
+        const query = event.results[0][0].transcript;
+        addMessage("user", query);
+        sendQuery(query);
+        isCallActive = false;
+        updateVoiceUI(false);
+    };
+
+    recognition.onerror = () => {
+        updateStatus("Ready", "green");
+        updateVoiceUI(false);
+        isCallActive = false;
+    };
+}
+
+function askAbout(query) {
+    /** Audit v4 Restoration: helper for scheme card clicks */
+    addMessage("user", query);
+    sendQuery(query);
 }
 
 function setLanguage(lang, el) {
@@ -100,39 +148,31 @@ async function sendQuery(query) {
         if (!vapiInstance || !isCallActive) speakText(data.answer);
         updateStatus("Ready", "green");
     } catch (err) {
+        /** Audit v4 Restoration: Clear error visibility */
         removeTyping();
+        addMessage("assistant", "Sorry, there was an error connecting to SahayakSetu. Please try again.");
         updateStatus("Error", "red");
+        setTimeout(() => updateStatus("Ready", "green"), 3000);
     }
 }
 
-// ── Advanced Script-Aware TTS Restoration ──────────
 function speakText(text) {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Audit v3: High-Precision Unicode Script Detection
     const scripts = {
-        "hi-IN": /[\u0900-\u097F]/, // Devanagari (Hindi/Marathi)
-        "kn-IN": /[\u0C80-\u0CFF]/, // Kannada
-        "te-IN": /[\u0C00-\u0C7F]/, // Telugu
-        "ta-IN": /[\u0B80-\u0BFF]/, // Tamil
-        "bn-IN": /[\u0980-\u09FF]/  // Bengali
+        "hi-IN": /[\u0900-\u097F]/, "kn-IN": /[\u0C80-\u0CFF]/,
+        "te-IN": /[\u0C00-\u0C7F]/, "ta-IN": /[\u0B80-\u0BFF]/,
+        "bn-IN": /[\u0980-\u09FF]/
     };
 
-    let detectedLang = "en-IN"; // Default
+    let detectedLang = "en-IN";
     for (const [lang, regex] of Object.entries(scripts)) {
-        if (regex.test(text)) {
-            detectedLang = lang;
-            break;
-        }
+        if (regex.test(text)) { detectedLang = lang; break; }
     }
     
-    // Mirror the detected script for the neural engine
     utterance.lang = (detectedLang === "en-IN") ? currentLanguage : detectedLang;
-    
-    // Browser Voice Priority (Azure/Google Neural)
     const voices = window.speechSynthesis.getVoices();
     const preferredVoice = voices.find(v => v.lang === utterance.lang && (v.name.includes("Neural") || v.name.includes("Google")));
     if (preferredVoice) utterance.voice = preferredVoice;
@@ -144,7 +184,7 @@ function addMessage(type, content) {
     const chat = document.getElementById("conversation");
     const msg = document.createElement("div");
     msg.className = `message ${type}`;
-    msg.textContent = content; // XSS Secure
+    msg.textContent = content; 
     chat.appendChild(msg);
     msg.scrollIntoView({ behavior: "smooth", block: "end" });
 }
@@ -191,10 +231,14 @@ function updateVoiceUI(active) {
 }
 
 function updateStatus(text, color) {
+    /** Audit v4 Restoration: Support for blue (processing) and yellow (unavailable) */
     const st = document.querySelector(".status-text");
     const d = document.querySelector(".status-dot");
     if (st) st.textContent = text;
-    if (d) d.style.background = {green: "#1DB954", orange: "#FF6B35", red: "#FF4444"}[color] || "#1DB954";
+    if (d) {
+        const colorMap = {green: "#1DB954", orange: "#FF6B35", red: "#FF4444", blue: "#0066CC", yellow: "#FFD93D"};
+        d.style.background = colorMap[color] || colorMap.green;
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -204,5 +248,4 @@ document.addEventListener("DOMContentLoaded", () => {
     if (input) input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendText(); });
 });
 
-// Refresh voices on load
 window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
