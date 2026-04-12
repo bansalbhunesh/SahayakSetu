@@ -1,67 +1,52 @@
 import os
-import sys
-from dotenv import load_dotenv
+from typing import List
 from qdrant_client import QdrantClient
-from openai import OpenAI
+from dotenv import load_dotenv
 
-# Load env vars
+# Load environment
 load_dotenv()
 
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not QDRANT_URL or not QDRANT_API_KEY:
-    print("❌ Critical: Missing QDRANT_URL or QDRANT_API_KEY in .env")
-    sys.exit(1)
-
-# Initialize Clients
+# Initialize Client
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-# Switch to free local embeddings for the test too!
-qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+# Use the one true Multilingual Model established in ingest.py and main.py
+MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+qdrant.set_model(MODEL)
 
-TEST_QUERIES = [
-    ("Hindi", "PM Kisan yojana mein kitna paisa milta hai aur kaise apply karein"),
-    ("English", "What is the eligibility for Ayushman Bharat health insurance?"),
-    ("Hinglish", "MGNREGA mein job card kaise banaye aur kitna paisa milega"),
-    ("Kannada", "Gruha Lakshmi yojana bagge mahiti needi")
-]
-
-def run_test():
-    print("\n🧪 SahayakSetu — Full Pipeline Test (Local & Free)")
-    print("============================================================")
+def test_search(query: str):
+    print(f"\n🔍 Testing Query: '{query}'")
+    print("-" * 50)
     
-    # 1. Check Qdrant Connection
-    try:
-        collections = qdrant.get_collections().collections
-        print(f"✅ Qdrant Connected")
-    except Exception as e:
-        print(f"❌ Qdrant Connection Failed: {e}")
-        return
-
-    # 2. Run Multilingual Queries
-    for lang, query in TEST_QUERIES:
-        print(f"\n[{lang}] Q: {query}")
-        try:
-            # Search using free local model
-            results = qdrant.query(
-                collection_name="sahayak_schemes",
-                query_text=query,
-                limit=1
-            )
-            
-            if results:
-                context = results[0].document
-                print(f"   ✅ RAG Result (Found): {context[:80]}...")
-            else:
-                print(f"   ⚠️ No results found in RAG.")
-                
-        except Exception as e:
-            print(f"   ❌ Error: {e}")
-
-    print("\n✅ Pipeline check complete!")
+    # Perform RAG Search
+    results = qdrant.query(
+        collection_name="sahayak_schemes",
+        query_text=query,
+        limit=3
+    )
+    
+    # Apply the same score thresholding we use in the backend
+    confident_results = [r for r in results if r.score > 0.4]
+    
+    if not confident_results:
+        print("⚠️ No confident matches found (Score < 0.4)")
+    
+    for i, res in enumerate(confident_results):
+        print(f"\nResult {i+1} [Score: {res.score:.4f}]")
+        print(f"Scheme: {res.metadata.get('scheme', 'Unknown')}")
+        print(f"Snippet: {res.document[:100]}...")
 
 if __name__ == "__main__":
-    run_test()
+    # Test English
+    test_search("Tell me about PM Kisan benefits")
+    
+    # Test Hindi/Hinglish
+    test_search("Ayushman Bharat card kaise banaye?")
+    
+    # Test Regional (Kannada)
+    test_search("Gruha Lakshmi yojana bagge heli")
+    
+    # Test Regional (Tamil)
+    test_search("Magalir Urimai Thogai details")

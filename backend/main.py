@@ -20,14 +20,27 @@ CHAT_MODEL = "gpt-4o-mini"
 
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-# Tell Qdrant to use local embeddings for queries too!
-qdrant.set_model("BAAI/bge-small-en-v1.5")
+# Tell Qdrant to use local MULTILINGUAL embeddings for queries!
+qdrant.set_model("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = FastAPI(title="SahayakSetu API")
 
-# Add CORS Middleware
+# STARTUP VALIDATION: Ensure demo doesn't fail due to env issues
+@app.on_event("startup")
+async def startup_event():
+    required_vars = ["QDRANT_URL", "QDRANT_API_KEY", "OPENAI_API_KEY"]
+    for var in required_vars:
+        if not os.getenv(var):
+            print(f"❌ CRITICAL ERROR: Missing environment variable: {var}")
+            # In production, we'd raise an error, for demo we print clearly
+    
+    print("🚀 SahayakSetu Backend Initialized")
+    print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
+    print(f"🤖 MODEL: {CHAT_MODEL}")
+    print(f"🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for the hackathon (including localhost and Vercel)
@@ -40,24 +53,24 @@ class SearchQuery(BaseModel):
     query: str
     user_id: Optional[str] = "anonymous"
 
-SYSTEM_PROMPT = """# SahayakSetu — Multilingual Government Assistant
-You are SahayakSetu (सहायक सेतु), an advanced AI assistant designed to bridge the gap between Indian citizens and government welfare schemes.
+SYSTEM_PROMPT = """# SahayakSetu (सहायक सेतु) — Core Expertise
+You are SahayakSetu, the official multilingual voice AI for Indian Government Welfare. Your mission is to provide accurate, empathetic, and actionable guidance to citizens who may have low literacy or language barriers.
 
-## Core Directives:
-1. **Multilingualism**: You MUST respond in the language the user speaks (Hindi, Kannada, Tamil, Telugu, Bengali, Marathi, or English).
-2. **Branding**: Always refer to yourself as "SahayakSetu".
-3. **Tone**: Empathetic, professional, and clear.
-4. **Tool Use**: Use the `search_schemes` tool for ANY question about eligibility, benefits, or application processes.
-5. **Language Awareness**: If search results are in English but the user asked in Kannada, translate the answer accurately into Kannada.
+## 🛠️ Logic Rules:
+1. **Source-Only**: ONLY use information provided in the search results. If the data isn't there, use the fallback.
+2. **Actionable**: Always provide a clear "Next Step" (e.g., "Visit the CSC", "Keep your Aadhaar ready").
+3. **Structured Response**:
+   - **Summary**: Concise explanation of the scheme.
+   - **Eligibility**: Who can apply.
+   - **Benefits**: What they get.
+   - **Action**: Where to go / What to do next.
+4. **Multilingual Presence**: Always respond natively in the user's language. If schemes are in English, interpret them accurately for the user.
+5. **Memory Awareness**: Acknowledge previous context if the user asks follow-up questions (e.g., "As I mentioned before about PM-Kisan...").
 
-## Handling Missing Info:
-If No Relevant Results are found in the schemes database:
-- **English**: "I couldn't find specific details for that scheme. Please visit your local Jan Seva Kendra or the official portal."
-- **Hindi**: "Mujhe is yojana ki jaankari nahi mili. Kripya apne nazdeeki Jan Seva Kendra ya official website par dekhein."
-- **Kannada**: "Ee yojaneya bagge mahiti illa. Dayavittu hattira Jan Seva Kendrakke bheti needi."
-- **Tamil**: "Indha thittam patri thagaval illai. Ungal pakkathil ulla Jan Seva Maiyathai thodarbu kollungal."
-- **Telugu**: "Ee yojana gurinchi samacharam ledu. Mee daggara unna Jan Seva Kendrani snatashinchandi."
-- **Bengali**: "Ei prokolper bishoye kono tottho nei. Anugraho kore apnar kachher Jan Seva Kendra te jogajog korun."
+## ⚠️ Handle Missing Info:
+If NO high-confidence information is available, say:
+"Mujhe iske baare mein pakki jaankari nahi mili. Kripya apne nazdeeki Jan Seva Kendra ya https://myscheme.gov.in par dekhein."
+(Adapt this accurately to the user's current language).
 """
 
 @app.post("/vapi-webhook")
@@ -76,18 +89,22 @@ async def vapi_webhook(request: Request):
                 args = json.loads(call["function"]["arguments"])
                 query = args.get("query")
                 
-                # Perform RAG Search with local embeddings!
-                # query_points handles local embedding generation internally.
+                # Perform RAG Search with local Multilingual embeddings!
                 search_results = qdrant.query(
                     collection_name="sahayak_schemes",
                     query_text=query,
                     limit=3
                 )
                 
-                context = "\n".join([p.document for p in search_results])
+                # SCORE THRESHOLDING: Only take matches > 0.4
+                confident_results = [p.document for p in search_results if p.score > 0.4]
+                context = "\n".join(confident_results)
+                
+                print(f"🔍 [QDRANT SEARCH] Query: {query} | Found {len(confident_results)} confident chunks")
+                
                 results.append({
                     "toolCallId": call["id"],
-                    "result": context if context else "No matching scheme information found."
+                    "result": context if context else "FALLBACK: Mujhe is scheme ki details database mein nahi mili."
                 })
         
         return JSONResponse(content={"results": results})
@@ -119,21 +136,25 @@ async def api_search(data: SearchQuery):
     Direct API endpoint for text-based chat/search.
     """
     try:
-        # Perform RAG search using FastEmbed
-        results = qdrant.query(
+        # Perform RAG search using Multilingual FastEmbed
+        search_results = qdrant.query(
             collection_name="sahayak_schemes",
             query_text=data.query,
             limit=3
         )
         
-        context = "\n".join([p.document for p in results])
+        # SCORE THRESHOLDING: Only take matches > 0.4
+        confident_results = [p.document for p in search_results if p.score > 0.4]
+        context = "\n".join(confident_results)
+        
+        print(f"🔍 [WEB SEARCH] Query: {data.query} | Found {len(confident_results)} confident chunks")
         
         # Generate Answer
         response = openai_client.chat.completions.create(
             model=CHAT_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"}
+                {"role": "user", "content": f"Context:\n{context if context else 'FALLBACK: No relevant info found.'}\n\nQuestion: {data.query}"}
             ]
         )
         
@@ -141,7 +162,7 @@ async def api_search(data: SearchQuery):
         
         return {
             "answer": answer,
-            "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in results]
+            "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in search_results if p.score > 0.4]
         }
     except HTTPException as e:
         raise e
