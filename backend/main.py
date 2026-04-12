@@ -3,6 +3,7 @@ import json
 from typing import List, Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -20,9 +21,16 @@ qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 # Tell Qdrant to use local embeddings for queries too!
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
-
 app = FastAPI(title="SahayakSetu API")
+
+# Add CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for the hackathon (including localhost and Vercel)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 SYSTEM_PROMPT = """# SahayakSetu — Multilingual Government Assistant
 You are SahayakSetu (सहायक सेतु), an advanced AI assistant designed to bridge the gap between Indian citizens and government welfare schemes.

@@ -82,4 +82,20 @@ uvicorn main:app --reload
 SahayakSetu isn't just a bot; it's a **bridge** (Setu). By making government schemes accessible via voice in regional languages for **zero embedding cost**, we create a scalable solution that can be deployed by NGOs, local government bodies, and social enterprises to ensure no citizen is left behind due to a language barrier.
 
 ---
+
+## 🌐 Deployment
+
+### Frontend (Vercel)
+1. Push this repo to GitHub.
+2. Connect your repo to **[Vercel](https://vercel.com)**.
+3. Vercel will automatically use `vercel.json` to deploy your `frontend` folder.
+
+### Backend (Render)
+1. Go to **[Render.com](https://render.com)**.
+2. Create a **New Blueprint Instance**.
+3. Link this repository.
+4. Render will use `render.yaml` to set up everything.
+5. **Important**: Add your `.env` variables in the Render Dashboard (Environment section).
+
+---
 *Built for the Bangalore All-India Hackathon 2026.*
