@@ -3,315 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SahayakSetu — सहायक सेतु | Multilingual Voice AI for Government Schemes</title>
-    <meta name="description" content="SahayakSetu helps Indian citizens access government welfare schemes through multilingual voice AI. Ask in English, Hindi, Kannada, Tamil, Telugu, or any Indian language about PM Kisan, Ayushman Bharat, Ujjwala, MGNREGA and more.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>SahayakSetu — सहायक सेतु | Multilingual Voice AI</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Animated background -->
     <div class="bg-gradient"></div>
     <div class="bg-grid"></div>
     <div class="floating-particles" id="particles"></div>
 
-    <!-- Header -->
     <header class="header" id="header">
         <div class="header-inner">
             <div class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 40 40" fill="none">
-                        <circle cx="20" cy="20" r="18" stroke="url(#grad1)" stroke-width="2.5"/>
-                        <path d="M14 20C14 16.686 16.686 14 20 14C23.314 14 26 16.686 26 20" stroke="url(#grad1)" stroke-width="2.5" stroke-linecap="round"/>
-                        <circle cx="20" cy="24" r="2" fill="url(#grad1)"/>
-                        <defs>
-                            <linearGradient id="grad1" x1="0" y1="0" x2="40" y2="40">
-                                <stop offset="0%" stop-color="#FF6B35"/>
-                                <stop offset="50%" stop-color="#FFFFFF"/>
-                                <stop offset="100%" stop-color="#138808"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                </div>
-                <div class="logo-text">
-                    <span class="logo-name">SahayakSetu</span>
-                    <span class="logo-hindi">सहायक सेतु</span>
-                </div>
+                <div class="logo-text"><span class="logo-name">SahayakSetu</span> <span class="logo-hindi">सहायक सेतु</span></div>
             </div>
             <nav class="nav">
-                <a href="#features" class="nav-link">Features</a>
-                <a href="#schemes" class="nav-link">Schemes</a>
-                <a href="#how-it-works" class="nav-link">How It Works</a>
-                <div class="nav-status" id="status-indicator">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Ready</span>
-                </div>
+                <div class="nav-status"><span class="status-dot"></span> <span class="status-text">Ready</span></div>
             </nav>
         </div>
     </header>
 
-    <!-- Hero Section -->
     <main>
         <section class="hero">
             <div class="hero-content">
-                <div class="hero-badge">
-                    <span class="badge-icon">🇮🇳</span>
-                    <span>Multilingual Voice AI for All of India</span>
-                </div>
-                <h1 class="hero-title">
-                    Every Voice. <br>
-                    <span class="gradient-text">Every Language.</span><br>
-                    One <span class="hindi-text">सेतु</span>.
-                </h1>
-                <p class="hero-subtitle">
-                    Ask about any Indian government scheme in English, Hindi, Kannada, Tamil, Telugu, Bengali, or any language you speak.
-                    Get instant answers about eligibility, benefits, and how to apply.
-                </p>
+                <div class="hero-badge">🇮🇳 Multilingual Voice AI for Indian Welfare</div>
+                <h1 class="hero-title">Every Voice. <span class="gradient-text">Every Language.</span> One सेतु.</h1>
+                <p class="hero-subtitle">Ask about government schemes in your mother tongue. Instant, verified answers powered by Gemini 2.0.</p>
 
-                <!-- Language Selector -->
-                <div class="language-selector" id="langSelector">
-                    <button class="lang-pill active" data-lang="hi-IN" onclick="setLanguage('hi-IN', this)">हिन्दी</button>
-                    <button class="lang-pill" data-lang="kn-IN" onclick="setLanguage('kn-IN', this)">ಕನ್ನಡ</button>
-                    <button class="lang-pill" data-lang="ta-IN" onclick="setLanguage('ta-IN', this)">தமிழ்</button>
-                    <button class="lang-pill" data-lang="te-IN" onclick="setLanguage('te-IN', this)">తెలుగు</button>
-                    <button class="lang-pill" data-lang="bn-IN" onclick="setLanguage('bn-IN', this)">বাংলা</button>
-                    <button class="lang-pill" data-lang="en-IN" onclick="setLanguage('en-IN', this)">English</button>
+                <div class="language-selector">
+                    <button class="lang-pill active" onclick="setLanguage('hi-IN', this)">हिन्दी</button>
+                    <button class="lang-pill" onclick="setLanguage('kn-IN', this)">ಕನ್ನಡ</button>
+                    <button class="lang-pill" onclick="setLanguage('ta-IN', this)">தமிழ்</button>
+                    <button class="lang-pill" onclick="setLanguage('te-IN', this)">తెలుగు</button>
+                    <button class="lang-pill" onclick="setLanguage('en-IN', this)">English</button>
                 </div>
 
-                <!-- Voice Button -->
                 <div class="voice-section">
                     <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()">
-                        <div class="voice-btn-ring ring-1"></div>
-                        <div class="voice-btn-ring ring-2"></div>
-                        <div class="voice-btn-ring ring-3"></div>
                         <div class="voice-btn-inner">
-                            <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                                <line x1="12" x2="12" y1="19" y2="22"/>
-                            </svg>
-                            <svg class="stop-icon hidden" id="stopIcon" viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="6" y="6" width="12" height="12" rx="2"/>
-                            </svg>
+                            <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                            <svg class="stop-icon hidden" id="stopIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                         </div>
                     </button>
-                    <p class="voice-label" id="voiceLabel">Tap to Talk</p>
-                    <p class="voice-hint" id="voiceHint">Choose your language above and tap to speak</p>
+                    <p class="voice-label" id="voiceLabel">Talk</p>
+                    <p class="voice-hint" id="voiceHint">Choose language and tap to speak</p>
                 </div>
 
-                <!-- Text Input Fallback -->
                 <div class="text-input-section">
                     <div class="text-input-wrapper">
-                        <input type="text" id="textInput" class="text-input" placeholder="Type in any language / किसी भी भाषा में लिखें / ಏನಾದರೂ ಬರೆಯಿರಿ..." />
-                        <button class="send-btn" id="sendBtn" onclick="sendText()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 2L11 13"/>
-                                <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
-                            </svg>
-                        </button>
+                        <input type="text" id="textInput" class="text-input" placeholder="Type in any language..." />
+                        <button class="send-btn" onclick="sendText()">➤</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Conversation Area -->
-            <div class="conversation" id="conversation">
-                <!-- Messages will be inserted here -->
-            </div>
+            <div class="conversation" id="conversation"></div>
         </section>
 
-        <!-- Features Section -->
         <section class="features" id="features">
-            <div class="section-header">
-                <h2 class="section-title">Why <span class="gradient-text">SahayakSetu</span>?</h2>
-                <p class="section-subtitle">Bridging the gap between citizens and government schemes</p>
-            </div>
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">🎤</div>
-                    <h3>Voice-First</h3>
-                    <p>Speak naturally in any Indian language — Hindi, English, Kannada, Tamil, Telugu, Bengali, or Hinglish.</p>
+                    <div class="feature-icon">🧠</div>
+                    <h3>Gemini 2.0 Brain</h3>
+                    <p>State-of-the-art multilingual reasoning with Groq Llama 3.3 failover.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🧠</div>
-                    <h3>AI-Powered RAG</h3>
-                    <p>Powered by Qdrant semantic search — answers come from verified government data, not hallucinations.</p>
+                    <div class="feature-icon">🔍</div>
+                    <h3>Qdrant RAG</h3>
+                    <p>Answers are grounded in 35+ verified scheme chunks to prevent hallucinations.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💬</div>
-                    <h3>7+ Languages</h3>
-                    <p>English, Hindi, Kannada, Tamil, Telugu, Bengali, Marathi, Hinglish — respond in YOUR language.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔒</div>
-                    <h3>Memory</h3>
-                    <p>Remembers your past questions to provide personalized follow-up assistance.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📱</div>
-                    <h3>Works Everywhere</h3>
-                    <p>Use on any device — phone, tablet, or computer. No app download needed.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Real-Time</h3>
-                    <p>Instant responses powered by optimized vector search and low-latency voice processing.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Schemes Section -->
-        <section class="schemes" id="schemes">
-            <div class="section-header">
-                <h2 class="section-title">Covered <span class="gradient-text">Schemes</span></h2>
-                <p class="section-subtitle">12+ major welfare schemes with detailed information</p>
-            </div>
-            <div class="schemes-grid">
-                <div class="scheme-card" onclick="askAbout('PM Kisan yojana ke baare mein bataye')">
-                    <div class="scheme-icon">🌾</div>
-                    <h4>PM Kisan</h4>
-                    <p>₹6,000/year for farmers</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Ayushman Bharat ke baare mein bataye')">
-                    <div class="scheme-icon">🏥</div>
-                    <h4>Ayushman Bharat</h4>
-                    <p>₹5 lakh health insurance</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Ujjwala Yojana mein gas connection kaise milega')">
-                    <div class="scheme-icon">🔥</div>
-                    <h4>Ujjwala Yojana</h4>
-                    <p>Free LPG connection</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('MGNREGA job card kaise banaye')">
-                    <div class="scheme-icon">👷</div>
-                    <h4>MGNREGA</h4>
-                    <p>100 days guaranteed work</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('PM Awas Yojana mein ghar kaise milega')">
-                    <div class="scheme-icon">🏠</div>
-                    <h4>PM Awas Yojana</h4>
-                    <p>Housing subsidy</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Sukanya Samriddhi Yojana ke baare mein bataye')">
-                    <div class="scheme-icon">👧</div>
-                    <h4>Sukanya Samriddhi</h4>
-                    <p>8.2% interest for daughters</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Jan Dhan account kaise kholein')">
-                    <div class="scheme-icon">🏦</div>
-                    <h4>Jan Dhan Yojana</h4>
-                    <p>Zero balance account</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Mudra loan kaise milega')">
-                    <div class="scheme-icon">💼</div>
-                    <h4>Mudra Yojana</h4>
-                    <p>₹10 lakh business loan</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Ration card kaise banaye')">
-                    <div class="scheme-icon">🍚</div>
-                    <h4>Ration Card / PDS</h4>
-                    <p>Subsidized food grains</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Atal Pension Yojana ke baare mein bataye')">
-                    <div class="scheme-icon">👴</div>
-                    <h4>Atal Pension</h4>
-                    <p>₹5,000/month pension</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('Kisan Credit Card kaise banaye')">
-                    <div class="scheme-icon">💳</div>
-                    <h4>Kisan Credit Card</h4>
-                    <p>4% interest farm loan</p>
-                </div>
-                <div class="scheme-card" onclick="askAbout('PM Fasal Bima Yojana ke baare mein bataye')">
-                    <div class="scheme-icon">🌧️</div>
-                    <h4>Fasal Bima</h4>
-                    <p>Crop insurance</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- How It Works -->
-        <section class="how-it-works" id="how-it-works">
-            <div class="section-header">
-                <h2 class="section-title">How It <span class="gradient-text">Works</span></h2>
-                <p class="section-subtitle">Simple 4-step voice pipeline powered by AI</p>
-            </div>
-            <div class="steps-grid">
-                <div class="step-card">
-                    <div class="step-number">01</div>
-                    <div class="step-icon">🎤</div>
-                    <h4>You Speak</h4>
-                    <p>Ask your question in any language — Vapi converts your voice to text using Deepgram</p>
-                </div>
-                <div class="step-connector">→</div>
-                <div class="step-card">
-                    <div class="step-number">02</div>
-                    <div class="step-icon">🔍</div>
-                    <h4>Qdrant Searches</h4>
-                    <p>Your question is semantically matched against 40+ scheme knowledge chunks</p>
-                </div>
-                <div class="step-connector">→</div>
-                <div class="step-card">
-                    <div class="step-number">03</div>
-                    <div class="step-icon">🧠</div>
-                    <h4>AI Answers</h4>
-                    <p>GPT-4o-mini generates a precise, contextual answer using the retrieved information</p>
-                </div>
-                <div class="step-connector">→</div>
-                <div class="step-card">
-                    <div class="step-number">04</div>
-                    <div class="step-icon">🔊</div>
-                    <h4>You Hear</h4>
-                    <p>The answer is spoken back in your language using high-quality Indian neural voices.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Architecture -->
-        <section class="architecture">
-            <div class="section-header">
-                <h2 class="section-title">Tech <span class="gradient-text">Stack</span></h2>
-            </div>
-            <div class="tech-grid">
-                <div class="tech-card">
-                    <span class="tech-label">Voice</span>
-                    <strong>Vapi</strong>
-                    <span class="tech-detail">STT + TTS + Orchestration</span>
-                </div>
-                <div class="tech-card">
-                    <span class="tech-label">Vector DB</span>
-                    <strong>Qdrant</strong>
-                    <span class="tech-detail">Semantic Search + Memory</span>
-                </div>
-                <div class="tech-card">
-                    <span class="tech-label">LLM</span>
-                    <strong>GPT-4o-mini</strong>
-                    <span class="tech-detail">Answer Generation</span>
-                </div>
-                <div class="tech-card">
-                    <span class="tech-label">Backend</span>
-                    <strong>FastAPI</strong>
-                    <span class="tech-detail">Python, Webhook Handler</span>
+                    <h3>Functional Memory</h3>
+                    <p>Remembers your conversation context for natural, session-based follow-ups.</p>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Footer -->
     <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-brand">
-                <span class="logo-name">SahayakSetu</span>
-                <span class="logo-hindi" style="font-size:0.9rem">सहायक सेतु</span>
-            </div>
-            <p class="footer-text">Built for accessibility, inclusivity & societal impact 🇮🇳</p>
-            <p class="footer-credit">Hackathon Project — Vapi × Qdrant</p>
-        </div>
+        <p>Built for Accessibility, Inclusivity & Societal Impact 🇮🇳</p>
     </footer>
 
-    <!-- Vapi Web SDK -->
     <script src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js" defer></script>
-
     <script src="app.js"></script>
 </body>
 </html>

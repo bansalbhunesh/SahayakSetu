@@ -9,14 +9,14 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.0
       - key: CHAT_MODEL
-        value: gpt-4o-mini
+        value: gemini-2.0-flash
       - sync: false
         key: QDRANT_URL
       - sync: false
         key: QDRANT_API_KEY
       - sync: false
-        key: OPENAI_API_KEY
+        key: GEMINI_API_KEY
       - sync: false
-        key: VAPI_API_KEY
+        key: GROQ_API_KEY
       - sync: false
-        key: VAPI_PUBLIC_KEY
+        key: BACKEND_URL

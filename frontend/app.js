@@ -27,10 +27,8 @@ function initParticles() {
         particle.style.animationDelay = Math.random() * 5 + "s";
         particle.style.animationDuration = (5 + Math.random() * 8) + "s";
 
-        // Randomize color between saffron and green
         const colors = ["#FF6B35", "#138808", "#FFD93D", "#0066CC"];
         particle.style.background = colors[Math.floor(Math.random() * colors.length)];
-
         container.appendChild(particle);
     }
 }
@@ -46,7 +44,6 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 });
 
 // ── Header Scroll Effect ───────────────────────────
-let lastScroll = 0;
 window.addEventListener("scroll", () => {
     const header = document.getElementById("header");
     const scrollY = window.scrollY;
@@ -56,29 +53,21 @@ window.addEventListener("scroll", () => {
     } else {
         header.style.borderBottomColor = "rgba(255,255,255,0.06)";
     }
-
-    lastScroll = scrollY;
 });
 
 // ── Vapi Voice Integration ─────────────────────────
 function initVapi() {
-    if (VAPI_PUBLIC_KEY === "YOUR_VAPI_PUBLIC_KEY") {
-        console.warn("⚠️ Vapi not configured — voice will use text fallback");
-        return;
-    }
+    if (VAPI_PUBLIC_KEY === "YOUR_VAPI_PUBLIC_KEY") return;
 
     try {
         if (window.Vapi) {
             vapiInstance = new window.Vapi(VAPI_PUBLIC_KEY);
             setupVapiEvents();
             updateStatus("Ready", "green");
-            console.log("✅ Vapi initialized");
         } else {
-            console.warn("Vapi SDK not loaded yet, retrying...");
             setTimeout(initVapi, 1000);
         }
     } catch (err) {
-        console.error("Vapi init error:", err);
         updateStatus("Voice unavailable", "yellow");
     }
 }
@@ -87,7 +76,6 @@ function setupVapiEvents() {
     if (!vapiInstance) return;
 
     vapiInstance.on("call-start", () => {
-        console.log("📞 Call started");
         isCallActive = true;
         updateVoiceUI(true);
         updateStatus("Listening...", "green");
@@ -95,24 +83,13 @@ function setupVapiEvents() {
     });
 
     vapiInstance.on("call-end", () => {
-        console.log("📞 Call ended");
         isCallActive = false;
         updateVoiceUI(false);
         updateStatus("Ready", "green");
         addMessage("system", "📞 Call ended");
     });
 
-    vapiInstance.on("speech-start", () => {
-        updateStatus("Speaking...", "orange");
-    });
-
-    vapiInstance.on("speech-end", () => {
-        updateStatus("Processing...", "blue");
-    });
-
     vapiInstance.on("message", (msg) => {
-        console.log("[VAPI MSG]", msg);
-
         if (msg.type === "transcript" && msg.transcriptType === "final") {
             if (msg.role === "user") {
                 addMessage("user", msg.transcript);
@@ -123,153 +100,75 @@ function setupVapiEvents() {
     });
 
     vapiInstance.on("error", (err) => {
-        console.error("Vapi error:", err);
         updateStatus("Error", "red");
-        addMessage("system", "⚠️ Voice error — try again or type your question in any language below");
+        addMessage("system", "⚠️ Voice error — try again or type your question below");
     });
 }
 
-// ── Voice Toggle ───────────────────────────────────
 function toggleVoice() {
-    if (isCallActive) {
-        stopVoice();
-    } else {
-        startVoice();
-    }
+    if (isCallActive) stopVoice();
+    else startVoice();
 }
 
 function startVoice() {
-    if (vapiInstance && VAPI_ASSISTANT_ID !== "YOUR_VAPI_ASSISTANT_ID") {
-        // Use Vapi for voice
-        vapiInstance.start(VAPI_ASSISTANT_ID);
-    } else {
-        // Fallback: use browser speech recognition
-        startBrowserSpeech();
-    }
+    if (vapiInstance && VAPI_ASSISTANT_ID !== "YOUR_VAPI_ASSISTANT_ID") vapiInstance.start(VAPI_ASSISTANT_ID);
+    else startBrowserSpeech();
 }
 
 function stopVoice() {
-    if (vapiInstance && isCallActive) {
-        vapiInstance.stop();
-    }
+    if (vapiInstance && isCallActive) vapiInstance.stop();
     isCallActive = false;
     updateVoiceUI(false);
     updateStatus("Ready", "green");
 }
 
-// ── Language Management ────────────────────────────
 function setLanguage(lang, el) {
     currentLanguage = lang;
-    
-    // Update UI
     document.querySelectorAll(".lang-pill").forEach(p => p.classList.remove("active"));
     el.classList.add("active");
     
-    // Update hint text
     const hint = document.getElementById("voiceHint");
     if (hint) {
-        const langNames = {
-            "hi-IN": "हिन्दी (Hindi)",
-            "kn-IN": "ಕನ್ನಡ (Kannada)",
-            "ta-IN": "தமிழ் (Tamil)",
-            "te-IN": "తెలుగు (Telugu)",
-            "bn-IN": "বাংলা (Bengali)",
-            "en-IN": "English"
-        };
+        const langNames = {"hi-IN":"हिन्दी", "kn-IN":"ಕನ್ನಡ", "ta-IN":"தமிழ்", "te-IN":"తెలుగు", "bn-IN":"বাংলা", "en-IN":"English"};
         hint.textContent = `Listening for: ${langNames[lang]}`;
     }
-    
-    console.log(`📡 Language set to: ${lang}`);
 }
 
-// ── Browser Speech Fallback ────────────────────────
 function startBrowserSpeech() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
     if (!SpeechRecognition) {
-        addMessage("system", "⚠️ Speech recognition not supported in this browser. Please type your question below.");
+        addMessage("system", "⚠️ Speech recognition not supported.");
         return;
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = currentLanguage; 
-    recognition.continuous = false;
-    recognition.interimResults = true; // Show interim transcription for better UX
-
-    isCallActive = true;
-    updateVoiceUI(true);
-    updateStatus("Listening...", "green");
-
+    recognition.lang = currentLanguage;
     recognition.onresult = (event) => {
-        let interimTranscript = "";
-        let finalTranscript = "";
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript;
-            } else {
-                interimTranscript += event.results[i][0].transcript;
-            }
-        }
-
-        if (finalTranscript) {
+        const finalTranscript = event.results[event.resultIndex][0].transcript;
+        if (event.results[event.resultIndex].isFinal) {
             addMessage("user", finalTranscript);
             sendQuery(finalTranscript);
-        } else if (interimTranscript) {
-            updateStatus(`Listening: ${interimTranscript}`, "orange");
         }
     };
-
-    recognition.onerror = (event) => {
-        console.error("Speech error:", event.error);
-        updateStatus("Ready", "green");
-        isCallActive = false;
-        updateVoiceUI(false);
-
-        if (event.error === "no-speech") {
-            addMessage("system", "🤔 Couldn't hear you — please try again or type your question");
-        }
-    };
-
-    recognition.onend = () => {
-        isCallActive = false;
-        updateVoiceUI(false);
-        updateStatus("Ready", "green");
-    };
-
     recognition.start();
-    addMessage("system", "🎤 Listening... (speak in any language)");
 }
 
-// ── Text Input ─────────────────────────────────────
 function sendText() {
     const input = document.getElementById("textInput");
     const query = input.value.trim();
-
     if (!query) return;
-
     addMessage("user", query);
     input.value = "";
     sendQuery(query);
 }
 
-// Handle Enter key
 document.addEventListener("DOMContentLoaded", () => {
     const input = document.getElementById("textInput");
-    if (input) {
-        input.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                sendText();
-            }
-        });
-    }
-
+    if (input) input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendText(); });
     initParticles();
     initVapi();
 });
 
-// ── API Call ───────────────────────────────────────
 async function sendQuery(query) {
     updateStatus("Thinking...", "orange");
     showTyping();
@@ -282,123 +181,50 @@ async function sendQuery(query) {
         });
 
         removeTyping();
-
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
         const data = await resp.json();
 
-        // Show answer
-        let answerHtml = data.answer;
+        // Show answer (Audit v3 fix: XSS safe construction)
+        addMessage("assistant", data.answer);
+        
         if (data.sources && data.sources.length > 0) {
             const topSource = data.sources[0];
-            answerHtml += `<span class="source-tag">📚 ${topSource.scheme} (${(topSource.score * 100).toFixed(0)}% match)</span>`;
+            const sourceTag = document.createElement("span");
+            sourceTag.className = "source-tag";
+            sourceTag.textContent = `📚 ${topSource.scheme} (${(topSource.score * 100).toFixed(0)}% match)`;
+            const lastMsg = document.querySelector("#conversation .message.assistant:last-child");
+            if (lastMsg) lastMsg.appendChild(sourceTag);
         }
 
-        addMessage("assistant", answerHtml, true);
-
-        // Speak the answer (TTS fallback)
-        if (!vapiInstance || !isCallActive) {
-            speakText(data.answer);
-        }
-
+        if (!vapiInstance || !isCallActive) speakText(data.answer);
         updateStatus("Ready", "green");
     } catch (err) {
         removeTyping();
-        console.error("API error:", err);
-        addMessage("assistant", "Sorry, there was an error connecting to the server. Please make sure the backend is running.");
         updateStatus("Error", "red");
-        setTimeout(() => updateStatus("Ready", "green"), 3000);
     }
 }
 
-// ── Ask About (Scheme Cards) ───────────────────────
 function askAbout(query) {
     addMessage("user", query);
     sendQuery(query);
-
-    // Scroll to conversation
-    document.getElementById("conversation").scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-    });
-}
-
-// ── TTS Fallback ───────────────────────────────────
-// Pre-load voices for better reliability
-if (typeof window !== "undefined" && window.speechSynthesis) {
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-    }
 }
 
 function speakText(text) {
     if ("speechSynthesis" in window) {
-        // Cancel any ongoing speech
         window.speechSynthesis.cancel();
-
-        // Stop existing speech
-        window.speechSynthesis.cancel();
-
         const utterance = new SpeechSynthesisUtterance(text);
-
-        // ── Detect Script (Hindi, Kannada, etc.) ──────────────────
         const containsHindi = /[\u0900-\u097F]/.test(text);
-        const containsKannada = /[\u0C80-\u0CFF]/.test(text);
-        const containsTamil = /[\u0B80-\u0BFF]/.test(text);
-        const containsTelugu = /[\u0C00-\u0C7F]/.test(text);
-        const containsBengali = /[\u0980-\u09FF]/.test(text);
-
-        // Determine target language based on actual content
-        let targetLang = currentLanguage;
-        if (containsHindi) targetLang = "hi-IN";
-        else if (containsKannada) targetLang = "kn-IN";
-        else if (containsTamil) targetLang = "ta-IN";
-        else if (containsTelugu) targetLang = "te-IN";
-        else if (containsBengali) targetLang = "bn-IN";
-
-        // Try to find matching voice
-        let voices = window.speechSynthesis.getVoices();
-        
-        // Helper to find voice for a specific lang
-        const findVoice = (langCode) => {
-            return voices.find(v => v.lang.toLowerCase().startsWith(langCode.toLowerCase().split("-")[0]));
-        };
-
-        let voice = findVoice(targetLang);
-        
-        // Fallback to Hindi if target not found but content is regional
-        if (!voice && (containsHindi || containsKannada || containsTamil || containsTelugu || containsBengali)) {
-            voice = findVoice("hi-IN");
-        }
-
-        if (voice) {
-            utterance.voice = voice;
-            utterance.lang = voice.lang;
-        } else {
-            utterance.lang = targetLang;
-        }
-
-        utterance.rate = 0.95;
-        utterance.pitch = 1;
+        utterance.lang = containsHindi ? "hi-IN" : currentLanguage;
         window.speechSynthesis.speak(utterance);
     }
 }
 
-// ── UI Helpers ─────────────────────────────────────
-function addMessage(type, content, isHtml = false) {
+function addMessage(type, content) {
     const conversation = document.getElementById("conversation");
     const msg = document.createElement("div");
     msg.className = `message ${type}`;
-
-    if (isHtml) {
-        msg.innerHTML = content;
-    } else {
-        msg.textContent = content;
-    }
-
+    msg.textContent = content; // Secure XSS Fix
     conversation.appendChild(msg);
-
-    // Scroll to bottom
     msg.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
@@ -407,13 +233,8 @@ function showTyping() {
     const typing = document.createElement("div");
     typing.className = "message assistant typing-indicator";
     typing.id = "typing";
-    typing.innerHTML = `
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-    `;
+    typing.innerHTML = `<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>`;
     conversation.appendChild(typing);
-    typing.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
 function removeTyping() {
@@ -426,34 +247,25 @@ function updateVoiceUI(active) {
     const micIcon = document.getElementById("micIcon");
     const stopIcon = document.getElementById("stopIcon");
     const label = document.getElementById("voiceLabel");
-
     if (active) {
         btn.classList.add("active");
         micIcon.classList.add("hidden");
         stopIcon.classList.remove("hidden");
-        label.textContent = "Tap to Stop";
+        label.textContent = "Stop";
     } else {
         btn.classList.remove("active");
         micIcon.classList.remove("hidden");
         stopIcon.classList.add("hidden");
-        label.textContent = "Tap to Talk";
+        label.textContent = "Talk";
     }
 }
 
 function updateStatus(text, color) {
     const statusText = document.querySelector(".status-text");
     const statusDot = document.querySelector(".status-dot");
-
     if (statusText) statusText.textContent = text;
-
     if (statusDot) {
-        const colorMap = {
-            green: "#1DB954",
-            orange: "#FF6B35",
-            red: "#FF4444",
-            blue: "#0066CC",
-            yellow: "#FFD93D",
-        };
+        const colorMap = {green: "#1DB954", orange: "#FF6B35", red: "#FF4444", blue: "#0066CC", yellow: "#FFD93D"};
         statusDot.style.background = colorMap[color] || colorMap.green;
     }
 }
