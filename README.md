@@ -9,67 +9,73 @@
 
 ---
 
-## 🔗 Quick Links (Live Now!)
+## 🔗 🌐 Live Links (Quick Access)
 *   **Live Website**: [https://sahayak-setu.vercel.app](https://sahayak-setu.vercel.app)
 *   **Backend API**: [https://sahayaksetu-backend-3kxl.onrender.com](https://sahayaksetu-backend-3kxl.onrender.com)
-*   **GitHub**: [https://github.com/bansalbhunesh/SahayakSetu](https://github.com/bansalbhunesh/SahayakSetu)
+*   **GitHub Repository**: [https://github.com/bansalbhunesh/SahayakSetu](https://github.com/bansalbhunesh/SahayakSetu)
 
 ---
 
-## 🏛️ How It Works: The Smart Pipeline
-We use an innovative **Translation-Aware RAG Architecture** that allows us to support dozens of languages with zero cloud memory crashes.
+## 🛠️ How It Works (Simple 5-Step Process)
+We use a "Translation-Aware RAG" system to keep the app fast, free, and memory-safe!
 
-1.  **Voice Input**: The user speaks to the AI in their native language (Hindi, Kannada, etc.).
-2.  **Intent Interpretation**: **Google Gemini 1.5 Flash** interprets the spoken intent and translates it into a precise English keyword.
-3.  **Semantic Search**: We use **FastEmbed** and **Qdrant** to find matching scheme data from 60+ verified chunks.
-4.  **Actionable Answer**: The AI synthesizes the answer back into the user's native tongue.
-5.  **Voice Feedback**: The final response is spoken back via high-quality neural voices.
+1.  **Step 1: Speak Your Language** 🎤 
+    The user speaks in their native tongue (Hindi, Kannada, Tamil, etc.).
+2.  **Step 2: AI Interpretation** 🧠
+    Google Gemini 1.5 Flash (our free-tier brain) interprets the intent into English keywords.
+3.  **Step 3: Smart Search** 🔍
+    We search 60+ verified scheme chunks using local, lightweight (70MB) embeddings.
+4.  **Step 4: Regional Analysis** 🌐
+    The AI matches the scheme data and translates the answer back to your mother tongue.
+5.  **Step 5: Voice Response** 🔊
+    SahayakSetu speaks back with a professional, empathetic Indian neural voice.
 
 ---
 
-## 🎯 Hackathon Challenge: Accessibility & Impact
-SahayakSetu directly addresses **Hackblr Challenge #3**. Most portals are text-heavy barriers; we turned them into a empathetic conversation.
-
-### 1. Breaking the Linguistic Divide
-- **Innovation**: By using "Translation-Aware" logic, we use lightweight (70MB) models to handle heavy regional language queries, preventing server crashes.
-- **Coverage**: English, Hindi, Kannada, Tamil, Telugu, Bengali, Hinglish.
-
-### 2. Zero-Cost RAG Scaling
-- **Innovation**: Utilizing **FastEmbed** for local vector generation and **Google Gemini 1.5 Flash (Free Tier)** eliminated all external API costs.
-
-### 3. Actionable Welfare Access
-- We provide a clear **Summary ➔ Eligibility ➔ Action Steps** to ensure welfare reaches the last mile.
+## 🎯 Our Competitive Edge
+*   **Memory-Safe (512MB RAM)**: Optimized to run without crashing on lightweight cloud tiers.
+*   **Zero-Cost Intelligence**: Switched to **Gemini 1.5 Flash** to eliminate expensive API bills.
+*   **No "AI Tax"**: Using **Local FastEmbed** means our search logic is completely free to scale.
+*   **Impact Focused**: Provides clear **Summary ➜ Eligibility ➜ Action Steps** for every scheme.
 
 ---
 
 ## 🛠️ Technology Stack
 | Layer | Technology |
 | :--- | :--- |
-| **Voice / STT / TTS** | [Vapi.ai](https://vapi.ai) with Deepgram & Azure Neural Voices |
-| **Intelligence** | **Google Gemini 1.5 Flash** (Zero-cost, high-performance) |
+| **Voice / STT / TTS** | [Vapi.ai](https://vapi.ai) (Deepgram & Azure Neural) |
+| **Intelligence** | **Google Gemini 1.5 Flash** (Free & Fast) |
 | **Vector Database** | [Qdrant Cloud](https://qdrant.tech/) |
-| **Embedding Engine** | **FastEmbed** (BAAI/bge-small-en-v1.5) |
-| **Backend** | FastAPI (Python 3.12) |
-| **Frontend** | Vanilla JS + Glassmorphism CSS |
+| **Embedding Engine** | **FastEmbed** (Local Brain) |
+| **Hosting** | Vercel (Frontend) & Render (Backend) |
 
 ---
 
-## 🚀 Easy Setup & Development
+## 🚀 Easy Setup & Demo Instructions
 
-1. **Clone & Install**
+1. **Clone the Project**
    ```bash
    git clone https://github.com/bansalbhunesh/SahayakSetu.git
+   cd SahayakSetu
+   ```
+
+2. **Install Dependencies**
+   ```bash
    pip install -r backend/requirements.txt
    ```
 
-2. **Environment Setup** (Create a `.env` in `backend/`)
+3. **Configure Environment** (Create a `.env` file)
    - `GEMINI_API_KEY`
    - `QDRANT_URL` & `QDRANT_API_KEY`
    - `VAPI_API_KEY`
 
-3. **Ingest & Launch**
+4. **Prepare the Intelligence**
    ```bash
    python scripts/ingest.py
+   ```
+
+5. **Start the Engine**
+   ```bash
    python -m uvicorn backend.main:app --reload
    ```
 
