@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
-import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 # Load environment
@@ -15,31 +15,33 @@ load_dotenv()
 # Configuration
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-CHAT_MODEL = "gemini-2.0-flash"
+XAI_API_KEY = os.getenv("XAI_API_KEY")
 
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 # Tell Qdrant to use local LIGHTWEIGHT embeddings (Safe for 512MB Render Tier)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-# Initialize Gemini 2.0 Flash for ultimate stability and speed
-genai.configure(api_key=GEMINI_API_KEY)
-llm_model = genai.GenerativeModel(CHAT_MODEL)
+# Initialize xAI (Grok) Client
+xai_client = OpenAI(
+    api_key=XAI_API_KEY,
+    base_url="https://api.x.ai/v1",
+)
+CHAT_MODEL = "grok-beta"
 
 app = FastAPI(title="SahayakSetu API")
 
 # STARTUP VALIDATION
 @app.on_event("startup")
 async def startup_event():
-    required_vars = ["QDRANT_URL", "QDRANT_API_KEY", "GEMINI_API_KEY"]
+    required_vars = ["QDRANT_URL", "QDRANT_API_KEY", "XAI_API_KEY"]
     for var in required_vars:
         if not os.getenv(var):
             print(f"❌ CRITICAL ERROR: Missing environment variable: {var}")
     
     print("🚀 SahayakSetu Backend Initialized")
     print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
-    print(f"🤖 MODEL: {CHAT_MODEL} (Stabilized)")
+    print(f"🤖 MODEL: {CHAT_MODEL} (xAI Grok Activated)")
     print("🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
 
 app.add_middleware(
@@ -79,6 +81,7 @@ async def vapi_webhook(request: Request):
                 args = json.loads(call["function"]["arguments"])
                 query = args.get("query")
                 search_results = qdrant.query(collection_name="sahayak_schemes", query_text=query, limit=3)
+                # Lower threshold to 0.2 for better regional recall
                 confident_results = [p.document for p in search_results if p.score > 0.2]
                 context = "\n".join(confident_results)
                 results.append({
@@ -93,8 +96,9 @@ async def vapi_webhook(request: Request):
             "assistant": {
                 "name": "SahayakSetu",
                 "model": {
-                    "provider": "google",
-                    "model": "gemini-2.0-flash",
+                    "provider": "custom-llm",
+                    "url": "https://api.x.ai/v1",
+                    "model": "grok-beta",
                     "systemPrompt": SYSTEM_PROMPT,
                     "temperature": 0.7
                 },
@@ -114,10 +118,17 @@ async def api_search(data: SearchQuery):
         confident_results = [p.document for p in search_results if p.score > 0.2]
         context = "\n".join(confident_results)
         
-        # Absolute path hardcoded here too
-        response = llm_model.generate_content(f"{SYSTEM_PROMPT}\n\nContext:\n{context}\n\nQuestion: {data.query}")
+        response = xai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"}
+            ]
+        )
+        answer = response.choices[0].message.content
+        
         return {
-            "answer": response.text,
+            "answer": answer,
             "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in search_results if p.score > 0.2]
         }
     except Exception as e:
@@ -126,7 +137,7 @@ async def api_search(data: SearchQuery):
 
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "SahayakSetu Backend is Stabilized"}
+    return {"status": "online", "message": "SahayakSetu Backend is Stabilized with Grok"}
 
 if __name__ == "__main__":
     import uvicorn
