@@ -4,10 +4,9 @@
    ══════════════════════════════════════════════════ */
 
 // ── Configuration ──────────────────────────────────
-// ⚠️ REPLACE THESE WITH YOUR ACTUAL KEYS
-const VAPI_PUBLIC_KEY = "YOUR_VAPI_PUBLIC_KEY";        // From Vapi Dashboard
-const VAPI_ASSISTANT_ID = "YOUR_VAPI_ASSISTANT_ID";    // From setup_vapi.py output
-const BACKEND_URL = "http://localhost:8000";             // Your backend URL
+const VAPI_PUBLIC_KEY = "c0fcebfd-1570-4dfa-8b47-9280bfbaaaf8";
+const VAPI_ASSISTANT_ID = "bd9bb2ff-9b1d-4f6a-86a2-11dfda391550";
+const BACKEND_URL = "https://sahayaksetu-backend-3kxl.onrender.com";
 
 // ── State ──────────────────────────────────────────
 let vapiInstance = null;

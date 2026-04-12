@@ -32,6 +32,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class SearchQuery(BaseModel):
+    query: str
+    user_id: Optional[str] = "anonymous"
+
 SYSTEM_PROMPT = """# SahayakSetu — Multilingual Government Assistant
 You are SahayakSetu (सहायक सेतु), an advanced AI assistant designed to bridge the gap between Indian citizens and government welfare schemes.
 
@@ -104,6 +108,40 @@ async def vapi_webhook(request: Request):
         })
     
     return JSONResponse(content={})
+
+@app.post("/api/search")
+async def api_search(data: SearchQuery):
+    """
+    Direct API endpoint for text-based chat/search.
+    """
+    try:
+        # Perform RAG search using FastEmbed
+        results = qdrant.query(
+            collection_name="sahayak_schemes",
+            query_text=data.query,
+            limit=3
+        )
+        
+        context = "\n".join([p.document for p in results])
+        
+        # Generate Answer
+        response = openai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"}
+            ]
+        )
+        
+        answer = response.choices[0].message.content
+        
+        return {
+            "answer": answer,
+            "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in results]
+        }
+    except Exception as e:
+        print(f"❌ Search Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 def health():
