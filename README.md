@@ -8,10 +8,12 @@
 
 ---
 
-## 🏗️ Problem Statement: **Problem No. 3** — The "Inclusion Gap"
+## 🏗️ The Mission: Bridging the "Inclusion Gap"
+**Track:** *Voice AI Agent for Accessibility & Societal Impact*
+
 **The Problem:** India has 1,200+ government schemes, yet millions remain unaware of their eligibility because documentation is overwhelmingly stored in complex English PDFs. For the last-mile citizen—especially the rural, elderly, or non-literate—this creates a **Digital & Linguistic Barrier** to their basic rights.
 
-**The Solution (SahayakSetu):** We have built a production-grade, voice-first AI "bridge" that allows citizens to speak their questions in their **mother tongue** and receive actionable, verified advice instantly—eliminating the need for English literacy or digital expertise.
+**The Solution:** We have built a production-grade, voice-first AI "bridge" that allows citizens to speak their questions in their **mother tongue** and receive actionable, verified advice instantly—reimagining how people interact with knowledge to move from "answers" to "getting things done."
 
 ---
 
