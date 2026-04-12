@@ -9,7 +9,6 @@
 - **Live Website**: [https://sahayak-setu.vercel.app](https://sahayak-setu.vercel.app)
 - **Backend API**: [https://sahayaksetu-backend-3kxl.onrender.com](https://sahayaksetu-backend-3kxl.onrender.com)
 
-
 ---
 
 ## 🎯 Challenge Alignment: Accessibility & Societal Impact
@@ -52,4 +51,4 @@ SahayakSetu was built to solve **Challenge #3 (Voice AI Agent for Accessibility 
 SahayakSetu isn't just a bot; it's a **bridge** (Setu). By making government schemes accessible via voice for **zero embedding cost**, we've created a scalable blueprint for inclusive digital public infrastructure in India.
 
 ---
-*Built for Hackblr � Bangalore All-India Hackathon 2026.*
+*Built for Hackblr — Bangalore All-India Hackathon 2026.*
