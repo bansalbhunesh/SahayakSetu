@@ -33,7 +33,7 @@ if XAI_API_KEY:
 else:
     print("⚠️ WARNING: XAI_API_KEY is missing. Backend will start but AI features will be disabled.")
 
-CHAT_MODEL = "grok-beta"
+CHAT_MODEL = "grok-4-fast"
 
 app = FastAPI(title="SahayakSetu API")
 
