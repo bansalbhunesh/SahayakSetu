@@ -1,101 +1,55 @@
 # SahayakSetu (सहायक सेतु) 🚀
 ### Empowering Millions through Free, Localized, Voice-First AI for Government Welfare.
 
-**SahayakSetu** is a production-ready, truly multilingual voice AI agent designed to bridge the digital and linguistic divide in India. Built for the all-India hackathon context, it enables citizens to enquire about government schemes in their mother tongue through a simple, natural voice conversation.
+**SahayakSetu** is a production-grade, truly multilingual voice AI agent designed to bridge the digital and linguistic divide in India. It enables citizens to access complex government schemes through natural voice conversations in their mother tongue.
 
 ---
 
-## 🏗️ The Problem & Our Solution
-
-**The Problem**: 
-Most government scheme Portals are in English/Hindi and are text-heavy. For millions of citizens, especially in rural areas or across diverse regions like Karnataka, Tamil Nadu, and West Bengal, navigating these portals is a massive barrier. Additionally, building high-quality RAG (Retrieval-Augmented Generation) systems often requires expensive cloud embedding APIs.
-
-**The SahayakSetu Solution**:
-- **Voice-First Accessibility**: No typing required. Just speak in your language.
-- **Multilingual RAG**: Support for 7+ languages including **Kannada, Tamil, Telugu, Bengali, Hindi, Hinglish, and English**.
-- **Cost-Free Embedding Engine**: Uses **FastEmbed** to generate vectors locally. This makes the system extremely cost-efficient and faster by eliminating cloud embedding API latency and costs.
+## 🌐 Live Demo & Deployment
+- **Live Website**: [https://sahayak-setu.vercel.app](https://sahayak-setu.vercel.app)
+- **Backend API**: [https://sahayaksetu-backend-3kxl.onrender.com](https://sahayaksetu-backend-3kxl.onrender.com)
+- **Video Demo**: *[Add your YouTube/Loom link here]*
 
 ---
 
-## ✨ Key Features
+## 🎯 Challenge Alignment: Accessibility & Societal Impact
+SahayakSetu was built to solve **Challenge #3 (Voice AI Agent for Accessibility & Societal Impact)**. Here is how we addressed the core problem statement:
 
-- 🎙️ **Real-Time Voice Interactivity**: Powered by Vapi with a professional en-IN voice.
-- 🌍 **Deep Regional Support**: Specifically tuned with knowledge of 13+ schemes (PM-Kisan, Ayushman Bharat, Gruha Lakshmi, Rythu Bharosa, etc.).
-- 🧠 **Context-Aware RAG**: Seamlessly retrieves information from a Qdrant vector database using state-of-the-art `BGE-Small` embeddings.
-- 💬 **Code-Mixed (Hinglish) Support**: Understands how people naturally talk (mixing local languages with English terms).
-- 🔒 **Privacy & Efficiency**: Local embeddings ensure data parsing happens on the server, not via external paid APIs.
+### 1. Breaking the Linguistic Barrier (Multilingual)
+- **Problem**: Most digital services are English/Hindi only.
+- **Solution**: Native support for **7+ languages** including Kannada, Tamil, Telugu, Bengali, Hindi, Hinglish, and English.
+
+### 2. Solving the Literacy Gap (Voice-Native)
+- **Problem**: Complex text-heavy portals are inaccessible to low-literacy populations.
+- **Solution**: A **Voice-First** interface where users simply speak to get answers about eligibility and application processes.
+
+### 3. Simplifying Complex Systems (Context-Aware RAG)
+- **Problem**: Government scheme data is scattered and hard to understand.
+- **Solution**: Uses **Qdrant** for semantic retrieval (RAG) to synthesize accurate, contextual information from 60+ verified scheme chunks.
+
+### 4. Societal Impact
+- Directly bridges the gap between citizens and essential services like **PM-Kisan, Ayushman Bharat, and Gruha Lakshmi**, ensuring welfare reaches the last mile.
+
+---
+
+## ✨ Technical Excellence (The "AI Tax" Solution)
+> [!TIP]
+> **Innovative Cost Optimization**: We solved the high cost of cloud embeddings by implementing **Local FastEmbed**. This ensures the RAG pipeline operates at **zero embedding cost**, making the solution highly scalable for large-scale societal deployment.
 
 ---
 
 ## 🛠️ Technology Stack
-
-| Layer | Technology |
-|---|---|
-| **Voice Orchestration** | [Vapi.ai](https://vapi.ai) (Azure TTS + Deepgram STT) |
-| **Large Language Model** | OpenAI GPT-4o-mini |
-| **Vector Database** | [Qdrant Cloud](https://qdrant.tech/) |
-| **Embedding Model** | **FastEmbed** (BAAI/bge-small-en-v1.5) — *Local & Free* |
-| **Backend** | FastAPI (Python 3.12) |
-| **Frontend** | Modern Vanilla JS + CSS3 (Glassmorphism UI) |
+- **Voice**: [Vapi.ai](https://vapi.ai) (Deepgram STT + Azure TTS + Orchestration)
+- **Vector DB**: [Qdrant Cloud](https://qdrant.tech/) (Semantic Search + Contextual Memory)
+- **Embedding Engine**: **FastEmbed** (BAAI/bge-small-en-v1.5) — *Local, Fast & Free*
+- **LLM**: GPT-4o-mini
+- **Backend**: FastAPI (Python 3.12)
+- **Frontend**: Vanilla JS + CSS (Glassmorphism Design)
 
 ---
 
-## 🚀 Getting Started
-
-### 1. Prerequisites
-- Python 3.12
-- Qdrant Cloud Cluster (Free Tier)
-- Vapi.ai Account
-
-### 2. Setup Environment
-Clone the repo and create a `.env` file:
-```bash
-QDRANT_URL=your_qdrant_url
-QDRANT_API_KEY=your_qdrant_key
-OPENAI_API_KEY=your_openai_key
-VAPI_API_KEY=your_vapi_private_key
-VAPI_PUBLIC_KEY=your_vapi_public_key
-```
-
-### 3. Installation & Ingestion
-```bash
-# Create environment
-python -m venv venv
-source venv/bin/activate  # or .\venv\Scripts\activate
-
-# Install dependencies
-pip install -r backend/requirements.txt
-
-# Ingest multilingual data (Uses Free FastEmbed)
-python scripts/ingest.py
-```
-
-### 4. Run the Backend
-```bash
-cd backend
-uvicorn main:app --reload
-```
-
----
-
-## 📈 Impact & Vision
-SahayakSetu isn't just a bot; it's a **bridge** (Setu). By making government schemes accessible via voice in regional languages for **zero embedding cost**, we create a scalable solution that can be deployed by NGOs, local government bodies, and social enterprises to ensure no citizen is left behind due to a language barrier.
-
----
-
-## 🌐 Deployment
-
-### Frontend (Vercel)
-1. Push this repo to GitHub.
-2. Connect your repo to **[Vercel](https://vercel.com)**.
-3. Vercel will automatically use `vercel.json` to deploy your `frontend` folder.
-
-### Backend (Render)
-1. Go to **[Render.com](https://render.com)**.
-2. Create a **New Blueprint Instance**.
-3. Link this repository.
-4. Render will use `render.yaml` to set up everything.
-5. **Important**: Add your `.env` variables in the Render Dashboard (Environment section).
+## 🚀 Impact Vision
+SahayakSetu isn't just a bot; it's a **bridge** (Setu). By making government schemes accessible via voice for **zero embedding cost**, we've created a scalable blueprint for inclusive digital public infrastructure in India.
 
 ---
 *Built for the Bangalore All-India Hackathon 2026.*
