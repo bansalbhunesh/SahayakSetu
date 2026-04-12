@@ -8,7 +8,7 @@
 ## 🌐 Live Demo & Deployment
 - **Live Website**: [https://sahayak-setu.vercel.app](https://sahayak-setu.vercel.app)
 - **Backend API**: [https://sahayaksetu-backend-3kxl.onrender.com](https://sahayaksetu-backend-3kxl.onrender.com)
-- **Video Demo**: *[Add your YouTube/Loom link here]*
+
 
 ---
 
