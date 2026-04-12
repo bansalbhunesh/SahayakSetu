@@ -48,6 +48,16 @@
 
 ---
 
+## 🛡️ Why SahayakSetu? (The Competitive Moat)
+Judges often ask: *"How is this different from Google Voice Search?"* 
+
+1. **Synthesized Action vs. Blue Links**: General search engines give you a list of websites to read. SahayakSetu gives you a **verified action plan** (Eligibility ➜ Benefits ➜ Next Step).
+2. **"Expert" RAG vs. General Crawling**: We don't search the whole web; we search a high-confidence, curated Vector DB of verified scheme documentation. 
+3. **Linguistic Continuity**: Unlike general assistants that often fall back to English for complex data, our **Pan-India Engine** ensures the entire reasoning and response stay within the user's cultural and script context.
+4. **Trust Infrastructure**: Every answer is tagged with a **Semantic Match %**, proving the transparency and source-grounding of the AI's logic.
+
+---
+
 ## 🎯 Societal Impact & Scalability
 - **Zero Hallucination Transparency**: Every response features a **Semantic Confidence Tag (Match %)**, proving the advice is grounded in verified government data.
 - **Last-Mile Accessibility**: No typing required. No English required. Just tap and talk.
