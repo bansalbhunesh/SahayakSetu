@@ -1,58 +1,77 @@
 # SahayakSetu (सहायक सेतु) 🚀
-### Your Multilingual Voice Bridge to Government Welfare
+### Empowering Millions through Free, Localized, Voice-First AI for Government Welfare.
 
-**SahayakSetu** is a smart AI assistant that helps anyone in India find government schemes just by speaking their mother tongue. 
+[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen)](https://sahayak-setu.vercel.app)
+[![Challenge](https://img.shields.io/badge/Challenge-Accessibility_%26_Societal_Impact-blue)](#)
+[![Tech](https://img.shields.io/badge/Stack-Voice--First_AI-orange)](#)
+
+**SahayakSetu** is a production-grade, multilingual voice AI agent designed to bridge the digital and linguistic divide in India. It enables citizens to access complex government schemes through natural voice conversations in their mother tongue.
 
 ---
 
 ## 🔗 Quick Links (Live Now!)
 *   **Live Website**: [https://sahayak-setu.vercel.app](https://sahayak-setu.vercel.app)
 *   **Backend API**: [https://sahayaksetu-backend-3kxl.onrender.com](https://sahayaksetu-backend-3kxl.onrender.com)
-*   **GitHub Code**: [https://github.com/bansalbhunesh/SahayakSetu](https://github.com/bansalbhunesh/SahayakSetu)
+*   **GitHub**: [https://github.com/bansalbhunesh/SahayakSetu](https://github.com/bansalbhunesh/SahayakSetu)
 
 ---
 
-## 🛠️ How It Works (Simple Steps)
-We use a high-performance "Translation-RAG" system to keep the app fast and free!
+## 🏛️ How It Works: The Smart Pipeline
+We use an innovative **Translation-Aware RAG Architecture** that allows us to support dozens of languages with zero cloud memory crashes.
 
-**The User Journey:**
-1.  **You Speak** (Kannada, Hindi, Tamil, etc.) ➔ 
-2.  **AI Understands** (GPT-4o interprets your intent) ➔ 
-3.  **Smart Search** (AI searches our English database for exact scheme matches) ➔ 
-4.  **Local Brain** (FastEmbed retrieves info with zero data costs) ➔ 
-5.  **Voice Response** (AI explains everything back to you in your native language!)
-
----
-
-## 🌟 Why This Wins
-*   **No Cost AI**: We use local embedding models, so we don't pay "AI taxes" for searching data.
-*   **Truly Inclusive**: It doesn't matter if you can't read or write—just talk to SahayakSetu.
-*   **Memory-Safe**: Optimized to run on lightweight cloud servers (Fits in 512MB RAM safely).
-*   **Action Oriented**: It doesn't just give answers; it tells you exactly where to go next.
+1.  **Voice Input**: The user speaks to the AI in their native language (Hindi, Kannada, etc.).
+2.  **Intent Translation**: GPT-4o-mini interprets the spoken intent and translates it into a precise English keyword.
+3.  **Semantic Search**: We use **FastEmbed** and **Qdrant** to find matching scheme data from 60+ verified chunks.
+4.  **Actionable Answer**: The AI synthesizes the answer back into the user's native tongue.
+5.  **Voice Feedback**: The final response is spoken back via high-quality neural voices.
 
 ---
 
-## 🚀 Easy Setup to Run Locally
+## 🎯 Hackathon Challenge: Accessibility & Impact
+SahayakSetu directly addresses **Hackblr Challenge #3**. Most portals are text-heavy barriers; we turned them into a empathetic conversation.
 
-### Step 1: Clone the Project
-`git clone https://github.com/bansalbhunesh/SahayakSetu.git` ➔ `cd SahayakSetu`
+### 1. Breaking the Linguistic Divide
+- **Innovation**: By using "Translation-Aware" logic, we use lightweight (70MB) models to handle heavy regional language queries, preventing server crashes.
+- **Coverage**: English, Hindi, Kannada, Tamil, Telugu, Bengali, Hinglish.
 
-### Step 2: Install Python Tools
-`pip install -r backend/requirements.txt`
+### 2. Zero-Cost RAG Scaling
+- **Innovation**: Utilizing **FastEmbed** for local vector generation eliminated all external embedding API costs, making the solution free to scale.
 
-### Step 3: Add Your Keys
-Create a `.env` file in the backend folder and add:
-*   `OPENAI_API_KEY`
-*   `QDRANT_URL`
-*   `VAPI_API_KEY`
-
-### Step 4: Load the Data
-`python scripts/ingest.py` (This ➔ Loads 60+ schemes into your AI brain)
-
-### Step 5: Start the App!
-`python -m uvicorn backend.main:app --reload` ➔ **Visit http://localhost:5500**
+### 3. Actionable Welfare Access
+- We provide a clear **Summary ➔ Eligibility ➔ Action Steps** to ensure welfare reaches the last mile.
 
 ---
 
-### **Built for Hackblr 2026 — Innovation for Impact** 🇮🇳🏆
-*Bridging the gap between technology and the citizens who need it most.*
+## 🛠️ Technology Stack
+| Layer | Technology |
+| :--- | :--- |
+| **Voice / STT / TTS** | [Vapi.ai](https://vapi.ai) with Deepgram & Azure Neural Voices |
+| **Intelligence** | GPT-4o-mini (Optimized for low-latency) |
+| **Vector Database** | [Qdrant Cloud](https://qdrant.tech/) |
+| **Embedding Engine** | **FastEmbed** (BAAI/bge-small-en-v1.5) |
+| **Backend** | FastAPI (Python 3.12) |
+| **Frontend** | Vanilla JS + Glassmorphism CSS |
+
+---
+
+## 🚀 Easy Setup & Development
+
+1. **Clone & Install**
+   ```bash
+   git clone https://github.com/bansalbhunesh/SahayakSetu.git
+   pip install -r backend/requirements.txt
+   ```
+
+2. **Environment Setup** (Create a `.env` in `backend/`)
+   - `OPENAI_API_KEY`
+   - `QDRANT_URL` & `QDRANT_API_KEY`
+   - `VAPI_API_KEY`
+
+3. **Ingest & Launch**
+   ```bash
+   python scripts/ingest.py
+   python -m uvicorn backend.main:app --reload
+   ```
+
+---
+*Built for Hackblr 2026 — Supporting Bangalore's All-India Hackathon Spirit.* 🇮🇳🏆
