@@ -17,37 +17,33 @@ QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# CRITICAL: Hardcoded stable model ID to prevent cloud 404 errors
-CHAT_MODEL = "gemini-1.5-flash-latest" 
-
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 # Tell Qdrant to use local LIGHTWEIGHT embeddings (Safe for 512MB Render Tier)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-# Initialize Gemini
+# Initialize Gemini with EXACT ABSOLUTE path to prevent Render 404 errors
 genai.configure(api_key=GEMINI_API_KEY)
-llm_model = genai.GenerativeModel(CHAT_MODEL)
+llm_model = genai.GenerativeModel("models/gemini-1.5-flash")
 
 app = FastAPI(title="SahayakSetu API")
 
-# STARTUP VALIDATION: Ensure demo doesn't fail due to env issues
+# STARTUP VALIDATION
 @app.on_event("startup")
 async def startup_event():
     required_vars = ["QDRANT_URL", "QDRANT_API_KEY", "GEMINI_API_KEY"]
     for var in required_vars:
         if not os.getenv(var):
             print(f"❌ CRITICAL ERROR: Missing environment variable: {var}")
-            # In production, we'd raise an error, for demo we print clearly
     
     print("🚀 SahayakSetu Backend Initialized")
     print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
-    print(f"🤖 MODEL: {CHAT_MODEL} (Google Gemini Activated)")
-    print(f"🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
+    print("🤖 MODEL: models/gemini-1.5-flash (STABILIZED)")
+    print("🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for the hackathon (including localhost and Vercel)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,9 +61,6 @@ You are SahayakSetu, the official AI bridge for Indian welfare. You handle langu
 2. **Translation-RAG**: When using the `search_schemes` tool, formulate your query in English for maximum precision.
 3. **Actionable**: Every answer MUST include a "Next Step" (e.g., "Visit the CSC", "Keep your Aadhaar ready").
 4. **No Hallucinations**: Only use the provided context. If no info found, direct them to Jan Seva Kendra.
-
-## ⚠️ Fallback:
-If no info is found: "Mujhe iske baare mein pakki jaankari nahi mili. Kripya apne nazdeeki Jan Seva Kendra ya official portal dekhein." (Translate to user's language).
 """
 
 @app.post("/vapi-webhook")
@@ -76,44 +69,31 @@ async def vapi_webhook(request: Request):
     body = await request.json()
     message = body.get("message", {})
     
-    # Handle Tool Call (Function Calling)
+    # Handle Tool Call
     if message.get("type") == "tool-calls":
         tool_calls = message.get("toolCalls", [])
         results = []
-        
         for call in tool_calls:
             if call["function"]["name"] == "search_schemes":
                 args = json.loads(call["function"]["arguments"])
                 query = args.get("query")
-                
-                # Perform RAG Search with local Multilingual embeddings!
-                search_results = qdrant.query(
-                    collection_name="sahayak_schemes",
-                    query_text=query,
-                    limit=3
-                )
-                
-                # SCORE THRESHOLDING: Only take matches > 0.4
+                search_results = qdrant.query(collection_name="sahayak_schemes", query_text=query, limit=3)
                 confident_results = [p.document for p in search_results if p.score > 0.4]
                 context = "\n".join(confident_results)
-                
-                print(f"🔍 [QDRANT SEARCH] Query: {query} | Found {len(confident_results)} confident chunks")
-                
                 results.append({
                     "toolCallId": call["id"],
-                    "result": context if context else "FALLBACK: Mujhe is scheme ki details database mein nahi mili."
+                    "result": context if context else "FALLBACK: Mujhe details nahi mili."
                 })
-        
         return JSONResponse(content={"results": results})
     
-    # Handle Assistant Configuration (Vapi request for prompt/voice)
+    # Handle Assistant Configuration
     if message.get("type") == "assistant-request":
         return JSONResponse(content={
             "assistant": {
                 "name": "SahayakSetu",
                 "model": {
                     "provider": "google",
-                    "model": "gemini-1.5-flash-latest",
+                    "model": "models/gemini-1.5-flash",
                     "systemPrompt": SYSTEM_PROMPT,
                     "temperature": 0.7
                 },
@@ -121,54 +101,31 @@ async def vapi_webhook(request: Request):
                     "provider": "azure",
                     "voiceId": "en-IN-NeerjaNeural"
                 },
-                "firstMessage": "Welcome to SahayakSetu. I can help you with government schemes in multiple languages. Namaste, main SahayakSetu hoon. Aapki kaise sahayata kar sakti hoon?"
+                "firstMessage": "Welcome to SahayakSetu. I can help you with government schemes. Namaste, main SahayakSetu hoon."
             }
         })
-    
     return JSONResponse(content={})
 
 @app.post("/api/search")
 async def api_search(data: SearchQuery):
-    """
-    Direct API endpoint for text-based chat/search.
-    """
     try:
-        # Perform RAG search using Multilingual FastEmbed
-        search_results = qdrant.query(
-            collection_name="sahayak_schemes",
-            query_text=data.query,
-            limit=3
-        )
-        
-        # SCORE THRESHOLDING: Only take matches > 0.4
+        search_results = qdrant.query(collection_name="sahayak_schemes", query_text=data.query, limit=3)
         confident_results = [p.document for p in search_results if p.score > 0.4]
         context = "\n".join(confident_results)
         
-        print(f"🔍 [WEB SEARCH] Query: {data.query} | Found {len(confident_results)} confident chunks")
-        
-        # Generate Answer using Gemini
-        full_prompt = f"{SYSTEM_PROMPT}\n\nContext:\n{context if context else 'FALLBACK: No relevant info found.'}\n\nQuestion: {data.query}"
-        response = llm_model.generate_content(full_prompt)
-        
-        answer = response.text
-        
+        # Absolute path hardcoded here too
+        response = llm_model.generate_content(f"{SYSTEM_PROMPT}\n\nContext:\n{context}\n\nQuestion: {data.query}")
         return {
-            "answer": answer,
+            "answer": response.text,
             "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in search_results if p.score > 0.4]
         }
-    except HTTPException as e:
-        raise e
     except Exception as e:
         print(f"❌ Search Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "SahayakSetu Backend is Live"}
-
-@app.get("/health")
-def health():
-    return {"status": "online", "branding": "SahayakSetu"}
+    return {"status": "online", "message": "SahayakSetu Backend is Stabilized"}
 
 if __name__ == "__main__":
     import uvicorn
