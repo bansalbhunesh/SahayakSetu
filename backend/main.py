@@ -23,11 +23,16 @@ RENDER_URL = "https://sahayaksetu-backend-3kxl.onrender.com"
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-# Initialize xAI (Grok) Client
-xai_client = OpenAI(
-    api_key=XAI_API_KEY,
-    base_url="https://api.x.ai/v1",
-)
+# Initialize xAI (Grok) Client with Stability Guard
+xai_client = None
+if XAI_API_KEY:
+    xai_client = OpenAI(
+        api_key=XAI_API_KEY,
+        base_url="https://api.x.ai/v1",
+    )
+else:
+    print("⚠️ WARNING: XAI_API_KEY is missing. Backend will start but AI features will be disabled.")
+
 CHAT_MODEL = "grok-beta"
 
 app = FastAPI(title="SahayakSetu API")
@@ -108,6 +113,9 @@ async def vapi_webhook(request: Request):
 @app.post("/chat/completions")
 async def chat_completions(request: Request):
     """Proxy Vapi requests directly to xAI using the backend's key."""
+    if not xai_client:
+        raise HTTPException(status_code=500, detail="xAI Client not initialized. Check XAI_API_KEY on Render.")
+        
     body = await request.json()
     
     # Forward the request to xAI
@@ -131,6 +139,9 @@ async def api_search(data: SearchQuery):
         confident_results = [p.document for p in search_results if p.score > 0.2]
         context = "\n".join(confident_results)
         
+        if not xai_client:
+            return {"answer": "Backend is online, but XAI_API_KEY is not configured on Render. Please add it to environment variables.", "sources": []}
+
         response = xai_client.chat.completions.create(
             model=CHAT_MODEL,
             messages=[
