@@ -21,6 +21,7 @@
 We have engineered SahayakSetu to be more than just a chatbot. It is a **Linguistic Mirror**:
 
 - **Universal Language Mirroring**: Automatically detects and responds in the exact script and language used by the user (**Hindi, Kannada, Tamil, Telugu, Bengali, or English**).
+- **Semantic Confidence Tags**: Every response includes a real-time "Match %" transparency tag, proving the answer is grounded in verified documentation and eliminating AI hallucinations.
 - **Free Tier Fusion (Dual-Brain)**: Utilizing **Gemini 2.0 Flash** as the primary reasoning engine, with an ultra-fast **Groq (Llama 3.3 70B)** fallback to ensure 100% uptime and zero cost.
 - **Script-Aware Neural TTS**: A custom voice engine that detects regional scripts and forces the correct neural accent, preventing "mechanical voice" skips.
 - **Translation-Aware RAG**: Interrogates English-only scheme documentation and interprets it with empathy and local nuance.
