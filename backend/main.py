@@ -22,6 +22,8 @@ qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 # Tell Qdrant to use local embeddings for queries too!
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
 app = FastAPI(title="SahayakSetu API")
 
 # Add CORS Middleware
