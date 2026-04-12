@@ -166,7 +166,7 @@ function startBrowserSpeech() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = "hi-IN";     // Default Hindi, Deepgram handles multi
+    recognition.lang = "en-IN";     // Support for English-speaking Indian users
     recognition.continuous = false;
     recognition.interimResults = false;
 

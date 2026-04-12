@@ -140,9 +140,15 @@ async def api_search(data: SearchQuery):
             "answer": answer,
             "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in results]
         }
+    except HTTPException as e:
+        raise e
     except Exception as e:
         print(f"❌ Search Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/")
+async def root():
+    return {"status": "online", "message": "SahayakSetu Backend is Live"}
 
 @app.get("/health")
 def health():
