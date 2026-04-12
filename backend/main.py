@@ -16,7 +16,9 @@ load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-CHAT_MODEL = "gemini-1.5-flash"
+
+# CRITICAL: Hardcoded stable model ID to prevent cloud 404 errors
+CHAT_MODEL = "gemini-1.5-flash-latest" 
 
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
@@ -40,7 +42,7 @@ async def startup_event():
     
     print("🚀 SahayakSetu Backend Initialized")
     print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
-    print(f"🤖 MODEL: {CHAT_MODEL} (Google Gemini)")
+    print(f"🤖 MODEL: {CHAT_MODEL} (Google Gemini Activated)")
     print(f"🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
 
 app.add_middleware(
