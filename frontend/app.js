@@ -324,29 +324,58 @@ function askAbout(query) {
 }
 
 // ── TTS Fallback ───────────────────────────────────
+// Pre-load voices for better reliability
+if (typeof window !== "undefined" && window.speechSynthesis) {
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+}
+
 function speakText(text) {
     if ("speechSynthesis" in window) {
         // Cancel any ongoing speech
         window.speechSynthesis.cancel();
 
+        // Stop existing speech
+        window.speechSynthesis.cancel();
+
         const utterance = new SpeechSynthesisUtterance(text);
 
-        // Try to find a matching regional voice
-        const voices = window.speechSynthesis.getVoices();
+        // ── Detect Script (Hindi, Kannada, etc.) ──────────────────
+        const containsHindi = /[\u0900-\u097F]/.test(text);
+        const containsKannada = /[\u0C80-\u0CFF]/.test(text);
+        const containsTamil = /[\u0B80-\u0BFF]/.test(text);
+        const containsTelugu = /[\u0C00-\u0C7F]/.test(text);
+        const containsBengali = /[\u0980-\u09FF]/.test(text);
+
+        // Determine target language based on actual content
+        let targetLang = currentLanguage;
+        if (containsHindi) targetLang = "hi-IN";
+        else if (containsKannada) targetLang = "kn-IN";
+        else if (containsTamil) targetLang = "ta-IN";
+        else if (containsTelugu) targetLang = "te-IN";
+        else if (containsBengali) targetLang = "bn-IN";
+
+        // Try to find matching voice
+        let voices = window.speechSynthesis.getVoices();
         
-        // Match by current language first
-        let voice = voices.find((v) => v.lang.startsWith(currentLanguage.split("-")[0]));
+        // Helper to find voice for a specific lang
+        const findVoice = (langCode) => {
+            return voices.find(v => v.lang.toLowerCase().startsWith(langCode.toLowerCase().split("-")[0]));
+        };
+
+        let voice = findVoice(targetLang);
         
-        // Fallback to Hindi if not found
-        if (!voice) {
-            voice = voices.find((v) => v.lang.startsWith("hi") || v.name.toLowerCase().includes("hindi"));
+        // Fallback to Hindi if target not found but content is regional
+        if (!voice && (containsHindi || containsKannada || containsTamil || containsTelugu || containsBengali)) {
+            voice = findVoice("hi-IN");
         }
 
         if (voice) {
             utterance.voice = voice;
             utterance.lang = voice.lang;
         } else {
-            utterance.lang = "hi-IN"; // Sensible default for the context
+            utterance.lang = targetLang;
         }
 
         utterance.rate = 0.95;
