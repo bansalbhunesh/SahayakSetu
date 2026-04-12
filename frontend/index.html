@@ -69,6 +69,16 @@
                     Get instant answers about eligibility, benefits, and how to apply.
                 </p>
 
+                <!-- Language Selector -->
+                <div class="language-selector" id="langSelector">
+                    <button class="lang-pill active" data-lang="hi-IN" onclick="setLanguage('hi-IN', this)">हिन्दी</button>
+                    <button class="lang-pill" data-lang="kn-IN" onclick="setLanguage('kn-IN', this)">ಕನ್ನಡ</button>
+                    <button class="lang-pill" data-lang="ta-IN" onclick="setLanguage('ta-IN', this)">தமிழ்</button>
+                    <button class="lang-pill" data-lang="te-IN" onclick="setLanguage('te-IN', this)">తెలుగు</button>
+                    <button class="lang-pill" data-lang="bn-IN" onclick="setLanguage('bn-IN', this)">বাংলা</button>
+                    <button class="lang-pill" data-lang="en-IN" onclick="setLanguage('en-IN', this)">English</button>
+                </div>
+
                 <!-- Voice Button -->
                 <div class="voice-section">
                     <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()">
@@ -87,7 +97,7 @@
                         </div>
                     </button>
                     <p class="voice-label" id="voiceLabel">Tap to Talk</p>
-                    <p class="voice-hint">Speak in any Indian language — English, Hindi, Kannada, Tamil, Telugu...</p>
+                    <p class="voice-hint" id="voiceHint">Choose your language above and tap to speak</p>
                 </div>
 
                 <!-- Text Input Fallback -->

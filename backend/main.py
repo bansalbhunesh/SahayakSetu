@@ -16,15 +16,16 @@ load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+CHAT_MODEL = "gemini-2.0-flash"
 
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 # Tell Qdrant to use local LIGHTWEIGHT embeddings (Safe for 512MB Render Tier)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-# Initialize Gemini with EXACT model name (no models/ prefix for newer libraries)
+# Initialize Gemini 2.0 Flash for ultimate stability and speed
 genai.configure(api_key=GEMINI_API_KEY)
-llm_model = genai.GenerativeModel("gemini-1.5-flash")
+llm_model = genai.GenerativeModel(CHAT_MODEL)
 
 app = FastAPI(title="SahayakSetu API")
 
@@ -38,15 +39,7 @@ async def startup_event():
     
     print("🚀 SahayakSetu Backend Initialized")
     print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
-    
-    # DEBUG: List available models to the logs to confirm availability
-    try:
-        available_models = [m.name for m in genai.list_models()]
-        print(f"🤖 AVAILABLE MODELS: {available_models}")
-        print("🤖 USING MODEL: gemini-1.5-flash")
-    except Exception as e:
-        print(f"⚠️ Could not list models: {e}")
-        
+    print(f"🤖 MODEL: {CHAT_MODEL} (Stabilized)")
     print("🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
 
 app.add_middleware(
@@ -86,7 +79,7 @@ async def vapi_webhook(request: Request):
                 args = json.loads(call["function"]["arguments"])
                 query = args.get("query")
                 search_results = qdrant.query(collection_name="sahayak_schemes", query_text=query, limit=3)
-                confident_results = [p.document for p in search_results if p.score > 0.4]
+                confident_results = [p.document for p in search_results if p.score > 0.2]
                 context = "\n".join(confident_results)
                 results.append({
                     "toolCallId": call["id"],
@@ -101,13 +94,13 @@ async def vapi_webhook(request: Request):
                 "name": "SahayakSetu",
                 "model": {
                     "provider": "google",
-                    "model": "gemini-1.5-flash",
+                    "model": "gemini-2.0-flash",
                     "systemPrompt": SYSTEM_PROMPT,
                     "temperature": 0.7
                 },
                 "voice": {
                     "provider": "azure",
-                    "voiceId": "en-IN-NeerjaNeural"
+                    "voiceId": "hi-IN-SwaraNeural"
                 },
                 "firstMessage": "Welcome to SahayakSetu. I can help you with government schemes. Namaste, main SahayakSetu hoon."
             }
@@ -118,14 +111,14 @@ async def vapi_webhook(request: Request):
 async def api_search(data: SearchQuery):
     try:
         search_results = qdrant.query(collection_name="sahayak_schemes", query_text=data.query, limit=3)
-        confident_results = [p.document for p in search_results if p.score > 0.4]
+        confident_results = [p.document for p in search_results if p.score > 0.2]
         context = "\n".join(confident_results)
         
         # Absolute path hardcoded here too
         response = llm_model.generate_content(f"{SYSTEM_PROMPT}\n\nContext:\n{context}\n\nQuestion: {data.query}")
         return {
             "answer": response.text,
-            "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in search_results if p.score > 0.4]
+            "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in search_results if p.score > 0.2]
         }
     except Exception as e:
         print(f"❌ Search Error: {e}")

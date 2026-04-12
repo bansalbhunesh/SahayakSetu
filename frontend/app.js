@@ -11,6 +11,7 @@ const BACKEND_URL = "https://sahayaksetu-backend-3kxl.onrender.com";
 // ── State ──────────────────────────────────────────
 let vapiInstance = null;
 let isCallActive = false;
+let currentLanguage = "hi-IN"; // Default to Hindi
 let userId = "web-" + Math.random().toString(36).substr(2, 9);
 
 // ── Init Particles ─────────────────────────────────
@@ -156,6 +157,31 @@ function stopVoice() {
     updateStatus("Ready", "green");
 }
 
+// ── Language Management ────────────────────────────
+function setLanguage(lang, el) {
+    currentLanguage = lang;
+    
+    // Update UI
+    document.querySelectorAll(".lang-pill").forEach(p => p.classList.remove("active"));
+    el.classList.add("active");
+    
+    // Update hint text
+    const hint = document.getElementById("voiceHint");
+    if (hint) {
+        const langNames = {
+            "hi-IN": "हिन्दी (Hindi)",
+            "kn-IN": "ಕನ್ನಡ (Kannada)",
+            "ta-IN": "தமிழ் (Tamil)",
+            "te-IN": "తెలుగు (Telugu)",
+            "bn-IN": "বাংলা (Bengali)",
+            "en-IN": "English"
+        };
+        hint.textContent = `Listening for: ${langNames[lang]}`;
+    }
+    
+    console.log(`📡 Language set to: ${lang}`);
+}
+
 // ── Browser Speech Fallback ────────────────────────
 function startBrowserSpeech() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -166,18 +192,32 @@ function startBrowserSpeech() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = "en-IN";     // Support for English-speaking Indian users
+    recognition.lang = currentLanguage; 
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true; // Show interim transcription for better UX
 
     isCallActive = true;
     updateVoiceUI(true);
     updateStatus("Listening...", "green");
 
     recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        addMessage("user", transcript);
-        sendQuery(transcript);
+        let interimTranscript = "";
+        let finalTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript;
+            } else {
+                interimTranscript += event.results[i][0].transcript;
+            }
+        }
+
+        if (finalTranscript) {
+            addMessage("user", finalTranscript);
+            sendQuery(finalTranscript);
+        } else if (interimTranscript) {
+            updateStatus(`Listening: ${interimTranscript}`, "orange");
+        }
     };
 
     recognition.onerror = (event) => {
@@ -291,14 +331,22 @@ function speakText(text) {
 
         const utterance = new SpeechSynthesisUtterance(text);
 
-        // Try to find a Hindi voice
+        // Try to find a matching regional voice
         const voices = window.speechSynthesis.getVoices();
-        const hindiVoice = voices.find((v) =>
-            v.lang.startsWith("hi") || v.name.toLowerCase().includes("hindi")
-        );
+        
+        // Match by current language first
+        let voice = voices.find((v) => v.lang.startsWith(currentLanguage.split("-")[0]));
+        
+        // Fallback to Hindi if not found
+        if (!voice) {
+            voice = voices.find((v) => v.lang.startsWith("hi") || v.name.toLowerCase().includes("hindi"));
+        }
 
-        if (hindiVoice) {
-            utterance.voice = hindiVoice;
+        if (voice) {
+            utterance.voice = voice;
+            utterance.lang = voice.lang;
+        } else {
+            utterance.lang = "hi-IN"; // Sensible default for the context
         }
 
         utterance.rate = 0.95;
