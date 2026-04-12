@@ -1,4 +1,5 @@
 fastapi
+google-generativeai
 openai
 qdrant-client
 fastembed

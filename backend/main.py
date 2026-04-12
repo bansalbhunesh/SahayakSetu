@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from openai import OpenAI
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # Load environment
@@ -16,24 +17,27 @@ load_dotenv()
 # Configuration
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-XAI_API_KEY = os.getenv("XAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 RENDER_URL = "https://sahayaksetu-backend-3kxl.onrender.com"
 
-# Initialize Clients
+# Initialize Qdrant
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-# Initialize xAI (Grok) Client with Stability Guard
-xai_client = None
-if XAI_API_KEY:
-    xai_client = OpenAI(
-        api_key=XAI_API_KEY,
-        base_url="https://api.x.ai/v1",
-    )
-else:
-    print("⚠️ WARNING: XAI_API_KEY is missing. Backend will start but AI features will be disabled.")
+# Initialize Gemini 2.0 Flash (Primary)
+genai.configure(api_key=GEMINI_API_KEY)
+# We use gemini-2.0-flash as it is free, fast, and multilingual on v1beta
+llm_model = genai.GenerativeModel("gemini-2.0-flash")
 
-CHAT_MODEL = "grok-4-fast"
+# Initialize Groq Client (Fallback)
+# Groq handles Llama 3.3 70B at 300+ t/s for free
+groq_client = None
+if GROQ_API_KEY:
+    groq_client = OpenAI(
+        api_key=GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1"
+    )
 
 app = FastAPI(title="SahayakSetu API")
 
@@ -61,8 +65,38 @@ You are SahayakSetu, the official AI bridge for Indian welfare. You handle langu
 
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 SahayakSetu Orchestrator Initialized")
-    print(f"🤖 MODEL: {CHAT_MODEL} (xAI Grok Activated)")
+    print("🚀 SahayakSetu Free Tier Fusion Initialized")
+    print("🧠 Primary: Gemini 2.0 Flash")
+    if groq_client:
+        print("⚡ Fallback: Groq (Llama 3.3 70B) READY")
+    else:
+        print("⚠️ Fallback: Groq NOT Configured (Add GROQ_API_KEY to .env)")
+
+# ── Intelligence Fusion Helper ─────────────────────
+async def generate_response(messages: list):
+    """Try Gemini 2.0 Flash first, fallback to Groq if Gemini fails."""
+    last_user_msg = messages[-1]["content"] if messages else ""
+    
+    try:
+        # 1. Try Gemini
+        response = llm_model.generate_content(last_user_msg)
+        return response.text, "gemini-2.0-flash"
+    except Exception as e:
+        print(f"⚠️ Gemini error, trying Groq fallback: {e}")
+        if groq_client:
+            try:
+                # 2. Try Groq (Llama 3.3)
+                groq_resp = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    temperature=0.7
+                )
+                return groq_resp.choices[0].message.content, "llama-3.3-70b-versatile"
+            except Exception as ge:
+                print(f"❌ Groq fallback failed: {ge}")
+                raise HTTPException(status_code=500, detail="Intelligence fusion failed.")
+        else:
+            raise HTTPException(status_code=500, detail="Gemini failed and Groq not configured.")
 
 # ── Vapi Webhook (The Handshake) ───────────────────
 @app.post("/vapi-webhook")
@@ -70,15 +104,14 @@ async def vapi_webhook(request: Request):
     body = await request.json()
     message = body.get("message", {})
     
-    # Handle Assistant Request (The Brain Assignment)
     if message.get("type") == "assistant-request":
         return JSONResponse(content={
             "assistant": {
                 "name": "SahayakSetu",
                 "model": {
                     "provider": "custom-llm",
-                    "url": RENDER_URL, # Tell Vapi to talk to US for reasoning
-                    "model": CHAT_MODEL,
+                    "url": RENDER_URL,
+                    "model": "gemini-2.0-flash",
                     "systemPrompt": SYSTEM_PROMPT,
                     "temperature": 0.5
                 },
@@ -90,7 +123,6 @@ async def vapi_webhook(request: Request):
             }
         })
     
-    # Handle Tool Call (The RAG Search)
     if message.get("type") == "tool-calls":
         tool_calls = message.get("toolCalls", [])
         results = []
@@ -109,28 +141,29 @@ async def vapi_webhook(request: Request):
     
     return JSONResponse(content={})
 
-# ── Custom LLM Endpoint (Bypasses Dashboard Key) ───
+# ── Custom LLM Endpoint (The Orchestrator) ──────────
 @app.post("/chat/completions")
 async def chat_completions(request: Request):
-    """Proxy Vapi requests directly to xAI using the backend's key."""
-    if not xai_client:
-        raise HTTPException(status_code=500, detail="xAI Client not initialized. Check XAI_API_KEY on Render.")
-        
     body = await request.json()
+    messages = body.get("messages", [])
     
-    # Forward the request to xAI
-    try:
-        response = xai_client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=body.get("messages", []),
-            temperature=body.get("temperature", 0.7),
-            stream=body.get("stream", False)
-        )
-        # Convert OpenAI object back to serializable dict
-        return response.model_dump()
-    except Exception as e:
-        print(f"❌ Grok Proxy Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    text, provider = await generate_response(messages)
+    
+    # Return OpenAI-compatible response for Vapi
+    return {
+        "id": f"chatcmpl-{int(time.time())}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": provider,
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": text
+            },
+            "finish_reason": "stop"
+        }]
+    }
 
 @app.post("/api/search")
 async def api_search(data: SearchQuery):
@@ -139,18 +172,16 @@ async def api_search(data: SearchQuery):
         confident_results = [p.document for p in search_results if p.score > 0.2]
         context = "\n".join(confident_results)
         
-        if not xai_client:
-            return {"answer": "Backend is online, but XAI_API_KEY is not configured on Render. Please add it to environment variables.", "sources": []}
-
-        response = xai_client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"}
-            ]
-        )
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"}
+        ]
+        
+        text, provider = await generate_response(messages)
+        
         return {
-            "answer": response.choices[0].message.content,
+            "answer": text,
+            "provider": provider,
             "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in search_results if p.score > 0.2]
         }
     except Exception as e:
@@ -159,7 +190,7 @@ async def api_search(data: SearchQuery):
 
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "SahayakSetu Orchestrator is ACTIVE"}
+    return {"status": "online", "message": "SahayakSetu Fusion is ACTIVE"}
 
 if __name__ == "__main__":
     import uvicorn
