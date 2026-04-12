@@ -19,19 +19,17 @@ qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
 def create_collections():
-    """Audit v3: Recreate collections with FastEmbed configuration."""
     print("📦 Recreating collections with Memory-Safe support...")
     qdrant.recreate_collection(
         collection_name="sahayak_schemes",
         vectors_config=qdrant.get_fastembed_vector_params()
     )
-    # Audit v4 Recovery: sahayak_memory recreation removed as it is now in-memory (main.py)
     print("   ✅ Created: sahayak_schemes")
 
 def get_scheme_data() -> List[Dict]:
-    """Large knowledge base for SahayakSetu (Honest 35+ Chunks)."""
+    """Large knowledge base for SahayakSetu (Definitive 35 Chunks)."""
     schemes = [
-        # --- NATIONAL SCHEMES ---
+        # --- NATIONAL SCHEMES (1-20) ---
         {"text": "PM Kisan Samman Nidhi: Farmers get Rs 6000 per year in 3 installments of Rs 2000 each via DBT.", "metadata": {"scheme": "PM-KISAN"}},
         {"text": "Ayushman Bharat (PM-JAY): Provides health cover of Rs 5 Lakh per family per year for hospitalization.", "metadata": {"scheme": "Ayushman Bharat"}},
         {"text": "PM Awas Yojana (PMAY): Providing 'Housing for All' to urban and rural poor with financial assistance.", "metadata": {"scheme": "PMAY"}},
@@ -53,25 +51,32 @@ def get_scheme_data() -> List[Dict]:
         {"text": "Digital India (CSC): Common Service Centers provide G2C services like Aadhaar and PAN.", "metadata": {"scheme": "Digital India"}},
         {"text": "Skill India (PMKVY): Short-term training/certification for youth with financial rewards.", "metadata": {"scheme": "PMKVY"}},
         
-        # --- REGIONAL SCHEMES ---
+        # --- NEW AUDIT V5 CHUNKS (21-30) ---
+        {"text": "PM Poshan (Mid-Day Meal): Ensures nutritional food for all school-going children in gov schools.", "metadata": {"scheme": "PM Poshan"}},
+        {"text": "Jal Jeevan Mission: Target to provide Har Ghar Jal (piped water) to every rural household by 2024.", "metadata": {"scheme": "Jal Jeevan"}},
+        {"text": "Mission Indradhanush: Immunization coverage for pregnant women and children against 12 diseases.", "metadata": {"scheme": "Indradhanush"}},
+        {"text": "PM-GKAY: Free 5kg food grains per person per month to NFSA beneficiaries.", "metadata": {"scheme": "PM-GKAY"}},
+        {"text": "PMAY-Gramin: Interest subvention and financial help for rural housing construction.", "metadata": {"scheme": "PMAY-G"}},
+        {"text": "Kisan Credit Card (KCC): Provides timely credit to farmers for seasonal agriculture and allied needs.", "metadata": {"scheme": "KCC"}},
+        {"text": "PM SVANidhi Part 2: Working capital loan 2nd tranche (20k) and 3rd tranche (50k) eligibility.", "metadata": {"scheme": "SVANidhi"}},
+        {"text": "Rashtriya Krishi Vikas Yojana: Supporting holistic development of agriculture and allied sectors.", "metadata": {"scheme": "RKVY"}},
+        {"text": "PM-CARES for Children: Support for children orphaned by COVID-19 pandemic.", "metadata": {"scheme": "PM-CARES"}},
+        {"text": "Sovereign Gold Bond (SGB): Government securities denominated in grams of gold as investment.", "metadata": {"scheme": "SGB"}},
+
+        # --- REGIONAL CHUNKS (31-35) ---
         {"text": "Gruha Lakshmi (Karnataka): Monthly financial assistance of Rs 2,000 to the woman head of house.", "metadata": {"scheme": "Gruha Lakshmi"}},
         {"text": "Shakti Scheme (Karnataka): Free bus travel facility for women and students in state-run buses.", "metadata": {"scheme": "Shakti"}},
         {"text": "Anna Bhagya (Karnataka): 10 kg of free food grains for BPL and Antyodaya cardholders.", "metadata": {"scheme": "Anna Bhagya"}},
-        {"text": "Pudhumai Penn (Tamil Nadu): Rs 1,000 monthly scholarship for gov school girls joining college.", "metadata": {"scheme": "Pudhumai Penn"}},
-        {"text": "Magalir Urimai Thogai (Tamil Nadu): Financial help of Rs 1,000 per month for women heads.", "metadata": {"scheme": "Magalir Urimai"}},
         {"text": "Rythu Bharosa (AP): Financial assistance of Rs 13,500 per year to farmers in Andhra Pradesh.", "metadata": {"scheme": "Rythu Bharosa"}},
-        {"text": "Swachh Bharat (Gramin): Financial incentive of Rs 12,000 provided for toilet construction.", "metadata": {"scheme": "Swachh Bharat"}},
-        {"text": "Deendayal Antyodaya (NRLM): Organizing rural poor into self-help groups for livelihoods.", "metadata": {"scheme": "NRLM"}},
+        {"text": "Pudhumai Penn (Tamil Nadu): Rs 1,000 monthly scholarship for gov school girls joining college.", "metadata": {"scheme": "Pudhumai Penn"}},
     ]
     return schemes
 
 def ingest_data():
-    """Ingest data using Qdrant's FastEmbed support."""
     print("\n🚀 SahayakSetu — Data Integrity Restoration")
-    print("==================================================")
     create_collections()
     data = get_scheme_data()
-    print(f"\n📄 Ingesting {len(data)} high-precision chunks (Audit v4 Clean Repository)...")
+    print(f"\n📄 Ingesting {len(data)} definitive chunks (Audit v5 Final Repository)...")
     qdrant.add(
         collection_name="sahayak_schemes",
         documents=[item["text"] for item in data],

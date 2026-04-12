@@ -14,25 +14,29 @@ from dotenv import load_dotenv
 # Load environment
 load_dotenv()
 
-# Configuration
+# Audit v5 Restoration: Startup Guards & Env Sync
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 BACKEND_URL = os.getenv("BACKEND_URL", "https://sahayaksetu-backend-3kxl.onrender.com")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
+
+if not QDRANT_URL or not GEMINI_API_KEY:
+    raise RuntimeError(f"Missing required env vars. QDRANT_URL={'set' if QDRANT_URL else 'MISSING'}, GEMINI_API_KEY={'set' if GEMINI_API_KEY else 'MISSING'}")
 
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
 genai.configure(api_key=GEMINI_API_KEY)
-llm_model = genai.GenerativeModel("gemini-2.0-flash")
+llm_model = genai.GenerativeModel(CHAT_MODEL)
 
 groq_client = None
 if GROQ_API_KEY:
     groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 
-# Conversation store
+# Audit v5 Restoration: Protected In-Memory Store
 conversation_store = {}
 
 app = FastAPI(title="SahayakSetu API")
@@ -61,21 +65,21 @@ You are SahayakSetu, the official AI bridge for Indian welfare. You handle langu
 
 @app.on_event("startup")
 async def startup_event():
-    """Audit v4 Restoration: Initialization logging."""
-    print("\n🚀 SahayakSetu — Intelligence Activated")
-    print(f"   Primary: Gemini 2.0 Flash")
+    print(f"\n🚀 SahayakSetu — Intelligence Activated")
+    print(f"   Primary: {CHAT_MODEL}")
     print(f"   Fallback: {'Groq-Llama-3.3' if groq_client else 'None'}")
     print(f"   RAG: Qdrant @ {QDRANT_URL[:20]}...")
 
 @app.get("/health")
 def health():
-    return {"status": "online", "primary": "gemini-2.0-flash", "threshold": 0.2}
+    return {"status": "online", "model": CHAT_MODEL, "threshold": 0.2}
 
 @app.get("/")
 def read_root():
-    return {"status": "SahayakSetu Backend Online"}
+    return {"status": "SahayakSetu Backend Online", "model": CHAT_MODEL}
 
 async def generate_response(messages: list):
+    """Audit v5 Restoration: High-Fidelity Exception Logging."""
     try:
         prompt_parts = [f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n"]
         for msg in messages:
@@ -85,16 +89,21 @@ async def generate_response(messages: list):
         
         full_prompt = "\n".join(prompt_parts)
         response = llm_model.generate_content(full_prompt)
-        return response.text, "gemini-2.0-flash"
-    except Exception:
+        return response.text, CHAT_MODEL
+    except Exception as e:
+        print(f"⚠️ Primary LLM {CHAT_MODEL} failed: {e}")
         if groq_client:
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages,
-                temperature=0.7
-            )
-            return response.choices[0].message.content, "groq-llama-3.3"
-        raise HTTPException(status_code=500, detail="Intelligence failure.")
+            try:
+                response = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    temperature=0.7
+                )
+                return response.choices[0].message.content, "groq-llama-3.3"
+            except Exception as ge:
+                print(f"❌ Groq fallback also failed: {ge}")
+                raise HTTPException(status_code=500, detail=f"Both LLMs failed. Gemini: {e}, Groq: {ge}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/search")
 async def api_search(data: SearchQuery):
@@ -103,6 +112,7 @@ async def api_search(data: SearchQuery):
         relevant = [p for p in search_results if p.score > 0.2]
         context = "\n\n".join([p.document for p in relevant])
         
+        # Memory Protection: Fetch history
         history = conversation_store.get(data.user_id, [])
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages.extend(history[-4:])
@@ -110,9 +120,15 @@ async def api_search(data: SearchQuery):
         
         text, provider = await generate_response(messages)
         
+        # Memory Protection: Truncate history to avoid RAM bloat
         history.append({"role": "user", "content": data.query})
         history.append({"role": "assistant", "content": text})
-        conversation_store[data.user_id] = history
+        conversation_store[data.user_id] = history[-20:] # Keep last 10 exchanges
+        
+        # Memory Protection: Clear oldest entries if store is too large
+        if len(conversation_store) > 500:
+            for key in list(conversation_store.keys())[:100]:
+                del conversation_store[key]
         
         return {
             "answer": text,
@@ -120,11 +136,11 @@ async def api_search(data: SearchQuery):
             "sources": [{"scheme": p.metadata.get("scheme", "Scheme"), "score": p.score} for p in relevant]
         }
     except Exception as e:
+        print(f"API Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/vapi-webhook")
 async def vapi_webhook(request: Request):
-    """Audit v4 Restoration: Multi-payload handling (Assistant-Request & Tool-Calls)."""
     body = await request.json()
     message = body.get("message", {})
     
@@ -168,6 +184,5 @@ async def chat_completions(request: Request):
     }
 
 if __name__ == "__main__":
-    """Audit v4 Restoration: Local development entry point."""
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

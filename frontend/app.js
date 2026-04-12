@@ -1,7 +1,6 @@
 /* ══════════════════════════════════════════════════
    SahayakSetu — Frontend Application Logic
-   Handles Vapi voice integration + Browser Fallback
-   Audit v4 Stability Restoration
+   Final Zero-Defect Production Sweep (Audit v5)
    ══════════════════════════════════════════════════ */
 
 // ── Configuration ──────────────────────────────────
@@ -62,7 +61,6 @@ function setupVapiEvents() {
 }
 
 function toggleVoice() {
-    /** Audit v4 Restoration: Safety null-checks and Browser Fallback */
     if (isCallActive) {
         if (vapiInstance) vapiInstance.stop();
         isCallActive = false;
@@ -72,13 +70,12 @@ function toggleVoice() {
         if (vapiInstance && VAPI_ASSISTANT_ID !== "YOUR_VAPI_ASSISTANT_ID") {
             vapiInstance.start(VAPI_ASSISTANT_ID);
         } else {
-            startBrowserSpeech(); // Safety net
+            startBrowserSpeech(); 
         }
     }
 }
 
 function startBrowserSpeech() {
-    /** Audit v4 Restoration: Browser speech recognition safety net */
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
         addMessage("assistant", "Sorry, voice recognition is not supported in this browser.");
@@ -97,19 +94,20 @@ function startBrowserSpeech() {
         const query = event.results[0][0].transcript;
         addMessage("user", query);
         sendQuery(query);
-        isCallActive = false;
-        updateVoiceUI(false);
     };
 
-    recognition.onerror = () => {
-        updateStatus("Ready", "green");
+    /** Audit v5 Restoration: Automatic mic reset safety net */
+    const resetUI = () => {
         updateVoiceUI(false);
+        updateStatus("Ready", "green");
         isCallActive = false;
     };
+
+    recognition.onend = resetUI;
+    recognition.onerror = resetUI;
 }
 
 function askAbout(query) {
-    /** Audit v4 Restoration: helper for scheme card clicks */
     addMessage("user", query);
     sendQuery(query);
 }
@@ -133,6 +131,10 @@ async function sendQuery(query) {
             body: JSON.stringify({ query, user_id: userId }),
         });
         removeTyping();
+
+        /** Audit v5 Restoration: Prevent 'undefined' bot responses on HTTP error */
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        
         const data = await resp.json();
         addMessage("assistant", data.answer);
         
@@ -148,7 +150,6 @@ async function sendQuery(query) {
         if (!vapiInstance || !isCallActive) speakText(data.answer);
         updateStatus("Ready", "green");
     } catch (err) {
-        /** Audit v4 Restoration: Clear error visibility */
         removeTyping();
         addMessage("assistant", "Sorry, there was an error connecting to SahayakSetu. Please try again.");
         updateStatus("Error", "red");
@@ -184,7 +185,7 @@ function addMessage(type, content) {
     const chat = document.getElementById("conversation");
     const msg = document.createElement("div");
     msg.className = `message ${type}`;
-    msg.textContent = content; 
+    msg.textContent = content || "No answer provided."; 
     chat.appendChild(msg);
     msg.scrollIntoView({ behavior: "smooth", block: "end" });
 }
@@ -231,7 +232,6 @@ function updateVoiceUI(active) {
 }
 
 function updateStatus(text, color) {
-    /** Audit v4 Restoration: Support for blue (processing) and yellow (unavailable) */
     const st = document.querySelector(".status-text");
     const d = document.querySelector(".status-dot");
     if (st) st.textContent = text;
@@ -246,6 +246,17 @@ document.addEventListener("DOMContentLoaded", () => {
     initVapi();
     const input = document.getElementById("textInput");
     if (input) input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendText(); });
-});
 
-window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+    /** Audit v5 Restoration: Firefox Safe Synthesis & Nav Smooth Scroll */
+    if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute("href"));
+            if (target) target.scrollIntoView({ behavior: "smooth" });
+        });
+    });
+});
