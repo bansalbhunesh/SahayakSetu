@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from typing import List, Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -16,10 +17,10 @@ load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 XAI_API_KEY = os.getenv("XAI_API_KEY")
+RENDER_URL = "https://sahayaksetu-backend-3kxl.onrender.com"
 
 # Initialize Clients
 qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-# Tell Qdrant to use local LIGHTWEIGHT embeddings (Safe for 512MB Render Tier)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
 # Initialize xAI (Grok) Client
@@ -30,19 +31,6 @@ xai_client = OpenAI(
 CHAT_MODEL = "grok-beta"
 
 app = FastAPI(title="SahayakSetu API")
-
-# STARTUP VALIDATION
-@app.on_event("startup")
-async def startup_event():
-    required_vars = ["QDRANT_URL", "QDRANT_API_KEY", "XAI_API_KEY"]
-    for var in required_vars:
-        if not os.getenv(var):
-            print(f"❌ CRITICAL ERROR: Missing environment variable: {var}")
-    
-    print("🚀 SahayakSetu Backend Initialized")
-    print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
-    print(f"🤖 MODEL: {CHAT_MODEL} (xAI Grok Activated)")
-    print("🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,13 +54,38 @@ You are SahayakSetu, the official AI bridge for Indian welfare. You handle langu
 4. **No Hallucinations**: Only use the provided context. If no info found, direct them to Jan Seva Kendra.
 """
 
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 SahayakSetu Orchestrator Initialized")
+    print(f"🤖 MODEL: {CHAT_MODEL} (xAI Grok Activated)")
+
+# ── Vapi Webhook (The Handshake) ───────────────────
 @app.post("/vapi-webhook")
 async def vapi_webhook(request: Request):
-    """Handle Vapi tool calls and assistant requests."""
     body = await request.json()
     message = body.get("message", {})
     
-    # Handle Tool Call
+    # Handle Assistant Request (The Brain Assignment)
+    if message.get("type") == "assistant-request":
+        return JSONResponse(content={
+            "assistant": {
+                "name": "SahayakSetu",
+                "model": {
+                    "provider": "custom-llm",
+                    "url": RENDER_URL, # Tell Vapi to talk to US for reasoning
+                    "model": CHAT_MODEL,
+                    "systemPrompt": SYSTEM_PROMPT,
+                    "temperature": 0.5
+                },
+                "voice": {
+                    "provider": "azure",
+                    "voiceId": "hi-IN-SwaraNeural"
+                },
+                "firstMessage": "Welcome to SahayakSetu. Main aapki sarkari schemes mein madad kar sakti hoon."
+            }
+        })
+    
+    # Handle Tool Call (The RAG Search)
     if message.get("type") == "tool-calls":
         tool_calls = message.get("toolCalls", [])
         results = []
@@ -81,35 +94,35 @@ async def vapi_webhook(request: Request):
                 args = json.loads(call["function"]["arguments"])
                 query = args.get("query")
                 search_results = qdrant.query(collection_name="sahayak_schemes", query_text=query, limit=3)
-                # Lower threshold to 0.2 for better regional recall
                 confident_results = [p.document for p in search_results if p.score > 0.2]
                 context = "\n".join(confident_results)
                 results.append({
                     "toolCallId": call["id"],
-                    "result": context if context else "FALLBACK: Mujhe details nahi mili."
+                    "result": context if context else "Mujhe details nahi mili."
                 })
         return JSONResponse(content={"results": results})
     
-    # Handle Assistant Configuration
-    if message.get("type") == "assistant-request":
-        return JSONResponse(content={
-            "assistant": {
-                "name": "SahayakSetu",
-                "model": {
-                    "provider": "custom-llm",
-                    "url": "https://api.x.ai/v1",
-                    "model": "grok-beta",
-                    "systemPrompt": SYSTEM_PROMPT,
-                    "temperature": 0.7
-                },
-                "voice": {
-                    "provider": "azure",
-                    "voiceId": "hi-IN-SwaraNeural"
-                },
-                "firstMessage": "Welcome to SahayakSetu. I can help you with government schemes. Namaste, main SahayakSetu hoon."
-            }
-        })
     return JSONResponse(content={})
+
+# ── Custom LLM Endpoint (Bypasses Dashboard Key) ───
+@app.post("/chat/completions")
+async def chat_completions(request: Request):
+    """Proxy Vapi requests directly to xAI using the backend's key."""
+    body = await request.json()
+    
+    # Forward the request to xAI
+    try:
+        response = xai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=body.get("messages", []),
+            temperature=body.get("temperature", 0.7),
+            stream=body.get("stream", False)
+        )
+        # Convert OpenAI object back to serializable dict
+        return response.model_dump()
+    except Exception as e:
+        print(f"❌ Grok Proxy Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/search")
 async def api_search(data: SearchQuery):
@@ -125,10 +138,8 @@ async def api_search(data: SearchQuery):
                 {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"}
             ]
         )
-        answer = response.choices[0].message.content
-        
         return {
-            "answer": answer,
+            "answer": response.choices[0].message.content,
             "sources": [{"scheme": p.metadata.get("scheme"), "score": p.score} for p in search_results if p.score > 0.2]
         }
     except Exception as e:
@@ -137,7 +148,7 @@ async def api_search(data: SearchQuery):
 
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "SahayakSetu Backend is Stabilized with Grok"}
+    return {"status": "online", "message": "SahayakSetu Orchestrator is ACTIVE"}
 
 if __name__ == "__main__":
     import uvicorn
