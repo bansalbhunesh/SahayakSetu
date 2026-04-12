@@ -22,9 +22,9 @@ qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 # Tell Qdrant to use local LIGHTWEIGHT embeddings (Safe for 512MB Render Tier)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
-# Initialize Gemini with EXACT ABSOLUTE path to prevent Render 404 errors
+# Initialize Gemini with EXACT model name (no models/ prefix for newer libraries)
 genai.configure(api_key=GEMINI_API_KEY)
-llm_model = genai.GenerativeModel("models/gemini-1.5-flash")
+llm_model = genai.GenerativeModel("gemini-1.5-flash")
 
 app = FastAPI(title="SahayakSetu API")
 
@@ -38,7 +38,15 @@ async def startup_event():
     
     print("🚀 SahayakSetu Backend Initialized")
     print(f"📡 QDRANT_URL: {QDRANT_URL[:30]}...")
-    print("🤖 MODEL: models/gemini-1.5-flash (STABILIZED)")
+    
+    # DEBUG: List available models to the logs to confirm availability
+    try:
+        available_models = [m.name for m in genai.list_models()]
+        print(f"🤖 AVAILABLE MODELS: {available_models}")
+        print("🤖 USING MODEL: gemini-1.5-flash")
+    except Exception as e:
+        print(f"⚠️ Could not list models: {e}")
+        
     print("🌐 EMBEDDINGS: Multilingual (sentence-transformers)")
 
 app.add_middleware(
@@ -93,7 +101,7 @@ async def vapi_webhook(request: Request):
                 "name": "SahayakSetu",
                 "model": {
                     "provider": "google",
-                    "model": "models/gemini-1.5-flash",
+                    "model": "gemini-1.5-flash",
                     "systemPrompt": SYSTEM_PROMPT,
                     "temperature": 0.7
                 },
