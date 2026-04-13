@@ -27,7 +27,7 @@ def create_collections():
     print("   ✅ Created: sahayak_schemes")
 
 def get_scheme_data() -> List[Dict]:
-    """Large knowledge base for SahayakSetu (Definitive 35 Chunks)."""
+    """Large knowledge base for SahayakSetu (Definitive 38 Chunks)."""
     schemes = [
         # --- NATIONAL SCHEMES (1-20) ---
         {"text": "PM Kisan Samman Nidhi: Farmers get Rs 6000 per year in 3 installments of Rs 2000 each via DBT.", "metadata": {"scheme": "PM-KISAN"}},
@@ -51,38 +51,41 @@ def get_scheme_data() -> List[Dict]:
         {"text": "Digital India (CSC): Common Service Centers provide G2C services like Aadhaar and PAN.", "metadata": {"scheme": "Digital India"}},
         {"text": "Skill India (PMKVY): Short-term training/certification for youth with financial rewards.", "metadata": {"scheme": "PMKVY"}},
         
-        # --- NEW AUDIT V5 CHUNKS (21-30) ---
+        # --- NATIONAL SECONDARY (21-30) ---
         {"text": "PM Poshan (Mid-Day Meal): Ensures nutritional food for all school-going children in gov schools.", "metadata": {"scheme": "PM Poshan"}},
-        {"text": "Jal Jeevan Mission: Target to provide Har Ghar Jal (piped water) to every rural household by 2024.", "metadata": {"scheme": "Jal Jeevan"}},
-        {"text": "Mission Indradhanush: Immunization coverage for pregnant women and children against 12 diseases.", "metadata": {"scheme": "Indradhanush"}},
+        {"text": "Jal Jeevan Mission: Target to provide Har Ghar Jal (piped water) to every rural household.", "metadata": {"scheme": "Jal Jeevan"}},
+        {"text": "Mission Indradhanush: Immunization coverage for pregnant women and children against diseases.", "metadata": {"scheme": "Indradhanush"}},
         {"text": "PM-GKAY: Free 5kg food grains per person per month to NFSA beneficiaries.", "metadata": {"scheme": "PM-GKAY"}},
         {"text": "PMAY-Gramin: Interest subvention and financial help for rural housing construction.", "metadata": {"scheme": "PMAY-G"}},
-        {"text": "Kisan Credit Card (KCC): Provides timely credit to farmers for seasonal agriculture and allied needs.", "metadata": {"scheme": "KCC"}},
+        {"text": "Kisan Credit Card (KCC): Provides timely credit to farmers for seasonal agriculture.", "metadata": {"scheme": "KCC"}},
         {"text": "PM SVANidhi Part 2: Working capital loan 2nd tranche (20k) and 3rd tranche (50k) eligibility.", "metadata": {"scheme": "SVANidhi"}},
-        {"text": "Rashtriya Krishi Vikas Yojana: Supporting holistic development of agriculture and allied sectors.", "metadata": {"scheme": "RKVY"}},
+        {"text": "Rashtriya Krishi Vikas Yojana: Supporting holistic development of agriculture sectors.", "metadata": {"scheme": "RKVY"}},
         {"text": "PM-CARES for Children: Support for children orphaned by COVID-19 pandemic.", "metadata": {"scheme": "PM-CARES"}},
-        {"text": "Sovereign Gold Bond (SGB): Government securities denominated in grams of gold as investment.", "metadata": {"scheme": "SGB"}},
+        {"text": "Sovereign Gold Bond (SGB): Government securities denominated in grams of gold.", "metadata": {"scheme": "SGB"}},
 
-        # --- REGIONAL CHUNKS (31-35) ---
+        # --- REGIONAL & RESTORED (31-38) ---
         {"text": "Gruha Lakshmi (Karnataka): Monthly financial assistance of Rs 2,000 to the woman head of house.", "metadata": {"scheme": "Gruha Lakshmi"}},
-        {"text": "Shakti Scheme (Karnataka): Free bus travel facility for women and students in state-run buses.", "metadata": {"scheme": "Shakti"}},
+        {"text": "Shakti Scheme (Karnataka): Free bus travel facility for women and students.", "metadata": {"scheme": "Shakti"}},
         {"text": "Anna Bhagya (Karnataka): 10 kg of free food grains for BPL and Antyodaya cardholders.", "metadata": {"scheme": "Anna Bhagya"}},
         {"text": "Rythu Bharosa (AP): Financial assistance of Rs 13,500 per year to farmers in Andhra Pradesh.", "metadata": {"scheme": "Rythu Bharosa"}},
         {"text": "Pudhumai Penn (Tamil Nadu): Rs 1,000 monthly scholarship for gov school girls joining college.", "metadata": {"scheme": "Pudhumai Penn"}},
+        {"text": "Magalir Urimai Thogai (Tamil Nadu): Financial help of Rs 1,000 per month for women heads.", "metadata": {"scheme": "Magalir Urimai"}},
+        {"text": "Swachh Bharat (Gramin): Financial incentive of Rs 12,000 provided for toilet construction.", "metadata": {"scheme": "Swachh Bharat"}},
+        {"text": "Deendayal Antyodaya (NRLM): Organizing rural poor into self-help groups for livelihoods.", "metadata": {"scheme": "NRLM"}},
     ]
     return schemes
 
 def ingest_data():
-    print("\n🚀 SahayakSetu — Data Integrity Restoration")
+    print("\n🚀 SahayakSetu — Definitive Knowledge Lockdown")
     create_collections()
     data = get_scheme_data()
-    print(f"\n📄 Ingesting {len(data)} definitive chunks (Audit v5 Final Repository)...")
+    print(f"\n📄 Ingesting {len(data)} definitive chunks (Audit v6 High-Coverage)...")
     qdrant.add(
         collection_name="sahayak_schemes",
         documents=[item["text"] for item in data],
         metadata=[item["metadata"] for item in data]
     )
-    print("\n✅ SUCCESS: 35+ Honesty Repository Ready!")
+    print("\n✅ SUCCESS: 38-Chunk Honesty Repository Ready!")
 
 if __name__ == "__main__":
     ingest_data()

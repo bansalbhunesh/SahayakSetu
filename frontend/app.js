@@ -94,6 +94,7 @@ function startBrowserSpeech() {
         const query = event.results[0][0].transcript;
         addMessage("user", query);
         sendQuery(query);
+        resetUI(); // Audit v6: Explicit reset safety
     };
 
     /** Audit v5 Restoration: Automatic mic reset safety net */
