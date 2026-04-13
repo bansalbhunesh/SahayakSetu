@@ -13,7 +13,14 @@
 
 **The Problem:** India has 1,200+ government schemes, yet millions remain unaware of their eligibility because documentation is overwhelmingly stored in complex English PDFs. For the last-mile citizen—especially the rural, elderly, or non-literate—this creates a **Digital & Linguistic Barrier** to their basic rights.
 
-**The Solution:** We have built a production-grade, voice-first AI "bridge" that allows citizens to speak their questions in their **mother tongue** and receive actionable, verified advice instantly—reimagining how people interact with knowledge to move from "answers" to "getting things done."
+**The Solution:** SahayakSetu is a production-grade, voice-first digital concierge designed to dismantle the 'last-mile' information barrier. By combining high-precision Vector RAG with real-time script-aware intelligence, we enable citizens to translate complex government bureaucracy into clear, actionable roadmaps in their native dialect—reimagining the relationship between citizen and state from a passive search for 'answers' to an empowered pursuit of 'action'.
+
+---
+
+## 🔗 Quick Links
+- **Frontend (Production)**: [https://sahayak-setu.vercel.app](https://sahayak-setu.vercel.app)
+- **Backend (Render API)**: [https://sahayaksetu-backend-3kxl.onrender.com/health](https://sahayaksetu-backend-3kxl.onrender.com/health)
+- **Knowledge Base**: [38 Verified Scheme Chunks (Qdrant)](/scripts/ingest.py)
 
 ---
 
