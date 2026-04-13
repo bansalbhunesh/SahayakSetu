@@ -6,7 +6,9 @@
 // ── Configuration ──────────────────────────────────
 const VAPI_PUBLIC_KEY = "c0fcebfd-1570-4dfa-8b47-9280bfbaaaf8";
 const VAPI_ASSISTANT_ID = "bd9bb2ff-9b1d-4f6a-86a2-11dfda391550";
-const BACKEND_URL = "https://sahayaksetu-backend-3kxl.onrender.com";
+const BACKEND_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+    ? "http://localhost:8000" 
+    : "https://sahayaksetu-backend-3kxl.onrender.com";
 
 // ── State ──────────────────────────────────────────
 let vapiInstance = null;

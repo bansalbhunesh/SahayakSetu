@@ -20,7 +20,10 @@ qdrant.set_model("BAAI/bge-small-en-v1.5")
 
 def create_collections():
     print("📦 Recreating collections with Memory-Safe support...")
-    qdrant.recreate_collection(
+    if qdrant.collection_exists("sahayak_schemes"):
+        qdrant.delete_collection("sahayak_schemes")
+    
+    qdrant.create_collection(
         collection_name="sahayak_schemes",
         vectors_config=qdrant.get_fastembed_vector_params()
     )
