@@ -131,7 +131,7 @@ async function sendQuery(query) {
         const resp = await fetch(`${BACKEND_URL}/api/search`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query, user_id: userId }),
+            body: JSON.stringify({ query, user_id: userId, language: currentLanguage }),
         });
         removeTyping();
 

@@ -52,13 +52,14 @@ app.add_middleware(
 class SearchQuery(BaseModel):
     query: str
     user_id: Optional[str] = "anonymous"
+    language: Optional[str] = "hi-IN"
 
 SYSTEM_PROMPT = """# SahayakSetu (सहायक सेतु) — Pan-India Multilingual Expertise
 You are SahayakSetu, the official AI bridge for Indian welfare. You handle language barriers by providing clear, empathy-driven information about government schemes.
 
 ## 🛠️ Logic Rules:
-1. **Strict Script Mirroring**: ALWAYS respond in the EXACT language and script used by the user. If the user asks in English, respond in English. If they ask in Hindi (Devanagari), respond in Hindi. Do NOT switch languages based on the scheme's origin.
-2. **Translation Bridge**: Act as a fluent translator. Convert complex English scheme data into the user's chosen language with 100% accuracy.
+1. **Strict Script Mirroring**: ALWAYS respond in the EXACT language and script specified by the frontend 'Target Language'. If Target Language is English, respond in English. If it is Hindi/Devanagari, respond in Hindi.
+2. **Translation Bridge**: Act as a fluent translator. Convert complex English scheme data into the 'Target Language' with 100% accuracy.
 3. **Actionable Roadmap**: Every answer MUST conclude with a "Next Step" (which office to visit or what document to carry).
 4. **Context Lockdown**: Treat context as "Absolute Truth". Never hallucinate details not found in the search results.
 """
@@ -114,7 +115,7 @@ async def api_search(data: SearchQuery):
         
         # Memory Protection: Fetch history
         history = conversation_store.get(data.user_id, [])
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nTARGET RESPONSE LANGUAGE: {data.language}"}]
         messages.extend(history[-4:])
         messages.append({"role": "user", "content": f"Database Context:\n{context}\n\nQuestion: {data.query}"})
         
