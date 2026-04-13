@@ -11,7 +11,7 @@ QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 
 if not QDRANT_URL or not QDRANT_API_KEY:
-    print("❌ Critical: Missing QDRANT_URL or QDRANT_API_KEY in .env")
+    print("[ERROR] Critical: Missing QDRANT_URL or QDRANT_API_KEY in .env")
     sys.exit(1)
 
 # Initialize Qdrant Client
@@ -19,7 +19,7 @@ qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 qdrant.set_model("BAAI/bge-small-en-v1.5")
 
 def create_collections():
-    print("📦 Recreating collections with Memory-Safe support...")
+    print("[INFO] Recreating collections with Memory-Safe support...")
     if qdrant.collection_exists("sahayak_schemes"):
         qdrant.delete_collection("sahayak_schemes")
     
@@ -27,7 +27,7 @@ def create_collections():
         collection_name="sahayak_schemes",
         vectors_config=qdrant.get_fastembed_vector_params()
     )
-    print("   ✅ Created: sahayak_schemes")
+    print("   [SUCCESS] Created: sahayak_schemes")
 
 def get_scheme_data() -> List[Dict]:
     """Large knowledge base for SahayakSetu (Definitive 38 Chunks)."""
@@ -61,7 +61,7 @@ def get_scheme_data() -> List[Dict]:
         {"text": "PM-GKAY: Free 5kg food grains per person per month to NFSA beneficiaries.", "metadata": {"scheme": "PM-GKAY"}},
         {"text": "PMAY-Gramin: Interest subvention and financial help for rural housing construction.", "metadata": {"scheme": "PMAY-G"}},
         {"text": "Kisan Credit Card (KCC): Provides timely credit to farmers for seasonal agriculture.", "metadata": {"scheme": "KCC"}},
-        {"text": "PM SVANidhi Part 2: Working capital loan 2nd tranche (20k) and 3rd tranche (50k) eligibility.", "metadata": {"scheme": "SVANidhi"}},
+        {"text": "PM SVANidhi Part 2: Working capital loan 2nd tranche (20k) and 3rd tranche (50k) eligibility.", "metadata": {"scheme": "SVANidhi-2"}},
         {"text": "Rashtriya Krishi Vikas Yojana: Supporting holistic development of agriculture sectors.", "metadata": {"scheme": "RKVY"}},
         {"text": "PM-CARES for Children: Support for children orphaned by COVID-19 pandemic.", "metadata": {"scheme": "PM-CARES"}},
         {"text": "Sovereign Gold Bond (SGB): Government securities denominated in grams of gold.", "metadata": {"scheme": "SGB"}},
@@ -79,16 +79,16 @@ def get_scheme_data() -> List[Dict]:
     return schemes
 
 def ingest_data():
-    print("\n🚀 SahayakSetu — Definitive Knowledge Lockdown")
+    print("\n[STARTUP] SahayakSetu - Definitive Knowledge Lockdown")
     create_collections()
     data = get_scheme_data()
-    print(f"\n📄 Ingesting {len(data)} definitive chunks (Audit v6 High-Coverage)...")
+    print(f"\n[INFO] Ingesting {len(data)} definitive chunks...")
     qdrant.add(
         collection_name="sahayak_schemes",
         documents=[item["text"] for item in data],
         metadata=[item["metadata"] for item in data]
     )
-    print("\n✅ SUCCESS: 38-Chunk Honesty Repository Ready!")
+    print("\n[SUCCESS] 38-Chunk Honesty Repository Ready!")
 
 if __name__ == "__main__":
     ingest_data()

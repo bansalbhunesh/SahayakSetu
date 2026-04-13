@@ -65,7 +65,7 @@ You are SahayakSetu, the official AI bridge for Indian welfare. You handle langu
 
 @app.on_event("startup")
 async def startup_event():
-    print(f"\n🚀 SahayakSetu — Intelligence Activated")
+    print(f"\n[STARTUP] SahayakSetu - Intelligence Activated")
     print(f"   Primary: {CHAT_MODEL}")
     print(f"   Fallback: {'Groq-Llama-3.3' if groq_client else 'None'}")
     print(f"   RAG: Qdrant @ {QDRANT_URL[:20]}...")
@@ -91,7 +91,7 @@ async def generate_response(messages: list):
         response = llm_model.generate_content(full_prompt)
         return response.text, CHAT_MODEL
     except Exception as e:
-        print(f"⚠️ Primary LLM {CHAT_MODEL} failed: {e}")
+        print(f"[WARNING] Primary LLM {CHAT_MODEL} failed: {e}")
         if groq_client:
             try:
                 response = groq_client.chat.completions.create(
@@ -101,7 +101,7 @@ async def generate_response(messages: list):
                 )
                 return response.choices[0].message.content, "groq-llama-3.3"
             except Exception as ge:
-                print(f"❌ Groq fallback also failed: {ge}")
+                print(f"[ERROR] Groq fallback also failed: {ge}")
                 raise HTTPException(status_code=500, detail=f"Both LLMs failed. Gemini: {e}, Groq: {ge}")
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,7 +1,7 @@
 fastapi
 google-generativeai
 openai
-qdrant-client
-fastembed
+qdrant-client==1.7.3
+fastembed>=0.8.0
 python-dotenv
 uvicorn
