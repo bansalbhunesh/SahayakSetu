@@ -58,6 +58,10 @@ def search_schemes(query: str, limit: int = 3) -> list[SearchResult]:
                 )
                 for result in raw_results
             ]
+        logger.info(
+            "qdrant_vector_empty",
+            extra={"query_prefix": (query or "")[:160], "collection": QDRANT_COLLECTION},
+        )
     except Exception:
         logger.warning("qdrant_query_failed_falling_back_to_catalog", exc_info=True)
     return _catalog_keyword_search(query, limit)
