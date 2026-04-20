@@ -38,7 +38,8 @@ def create_app() -> FastAPI:
         allow_origin_regex=ALLOWED_ORIGIN_REGEX or None,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-User-Id"],
+        allow_headers=["Content-Type", "Authorization", "X-User-Id", "X-Trace-Id"],
+        expose_headers=["X-Trace-Id"],
     )
 
     @app.middleware("http")

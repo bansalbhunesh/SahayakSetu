@@ -60,6 +60,14 @@ LLM_HISTORY_MESSAGE_LIMIT = 4
 RETRIEVAL_SOFT_FLOOR = 0.35
 RETRIEVAL_HARD_FLOOR = 0.55
 
+# External call limits — tune via env in production.
+LLM_CALL_TIMEOUT_S = float(os.getenv("LLM_CALL_TIMEOUT_S", "120"))
+MODERATION_CALL_TIMEOUT_S = float(os.getenv("MODERATION_CALL_TIMEOUT_S", "45"))
+REWRITE_QUERY_TIMEOUT_S = float(os.getenv("REWRITE_QUERY_TIMEOUT_S", "30"))
+API_RETRY_ATTEMPTS = int(os.getenv("API_RETRY_ATTEMPTS", "3"))
+API_RETRY_BASE_DELAY_S = float(os.getenv("API_RETRY_BASE_DELAY_S", "0.4"))
+API_RETRY_MAX_DELAY_S = float(os.getenv("API_RETRY_MAX_DELAY_S", "6.0"))
+
 if not QDRANT_URL or not GEMINI_API_KEY:
     raise RuntimeError(
         "Missing required env vars. "

@@ -46,11 +46,45 @@ function applyLanguageSelection(lang, el) {
     updateLanguageUI(lang);
 }
 
+function incomeBandToAnnualIncome(incomeRaw) {
+    const v = (incomeRaw || "").toLowerCase();
+    if (v.includes("below 1")) return 50000;
+    if (v.includes("1 to 3")) return 200000;
+    if (v.includes("3 to 6")) return 450000;
+    if (v.includes("above 6")) return 800000;
+    return null;
+}
+
+function buildProfileFromFinder() {
+    const state = document.getElementById("finderState")?.value?.trim() || "";
+    const role = document.querySelector('input[name="finderRole"]:checked')?.value || "";
+    const income = document.querySelector('input[name="finderIncome"]:checked')?.value || "";
+    const profile = {};
+    if (state) profile.state = state;
+    if (role) profile.occupation = role;
+    const annual = incomeBandToAnnualIncome(income);
+    if (annual != null) profile.annual_income = annual;
+    if (role.toLowerCase().includes("below poverty")) profile.bpl = true;
+    return profile;
+}
+
+function getProfileForRequest() {
+    if (appState.lastFinderProfile && Object.keys(appState.lastFinderProfile).length) {
+        return appState.lastFinderProfile;
+    }
+    const finderPanel = document.getElementById("finderPanel");
+    if (finderPanel && !finderPanel.classList.contains("hidden")) {
+        return buildProfileFromFinder();
+    }
+    return null;
+}
+
 function handleEligibilitySubmit(event) {
     event.preventDefault();
     const state = document.getElementById("finderState")?.value || "";
     const role = document.querySelector('input[name="finderRole"]:checked')?.value || "citizen";
     const income = document.querySelector('input[name="finderIncome"]:checked')?.value || "unspecified";
+    appState.lastFinderProfile = buildProfileFromFinder();
     const query = `Show government welfare schemes for a ${role} in ${state} with annual family income ${income}. Summarise the most relevant central or state schemes and how to apply.`;
     submitQuery(query);
 }
@@ -146,6 +180,7 @@ async function submitQuery(query) {
                 query,
                 user_id: appState.sessionUserId,
                 language: appState.selectedLanguage,
+                profile: getProfileForRequest(),
             }),
         });
         removeTypingIndicator();

@@ -9,6 +9,8 @@ export const appState = {
     currentSheetScheme: "",
     lastRetrievalDebug: null,
     lastTraceId: null,
+    /** Last structured profile from Eligibility Finder (sent with /api/search). */
+    lastFinderProfile: null,
 };
 
 export function setSessionUserId(id) {

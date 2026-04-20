@@ -6,12 +6,33 @@ import json
 import logging
 import re
 
-from backend.config import MODERATION_STRICT
+from backend.config import (
+    API_RETRY_ATTEMPTS,
+    API_RETRY_BASE_DELAY_S,
+    API_RETRY_MAX_DELAY_S,
+    MODERATION_CALL_TIMEOUT_S,
+    MODERATION_STRICT,
+)
 from backend.models.response_models import ModerationResult
 from backend.prompts.moderation_prompt import MODERATION_PROMPT, MODERATION_PROMPT_TRANSCRIPT
 from backend.services import llm_service
+from backend.services.resilience import async_retry, log_pipeline_step, with_timeout
 
 logger = logging.getLogger(__name__)
+
+# High-confidence welfare / civic intent — avoids false blocks on short benign queries.
+_WELFARE_CIVIC_HINT = re.compile(
+    r"\b(scheme|yojana|yojna|pm[-\s]?|pradhan|mantri|aadhaar|aadhar|loan|subsidy|"
+    r"welfare|benefit|eligibility|farmer|kisan|woman|women|mahila|student|scholarship|"
+    r"ration|ayushman|ujjwala|mudra|housing|pension|bpl|government|sarkari|"
+    r"csc|myscheme|apply|documents?|grant)\b",
+    re.IGNORECASE,
+)
+# Do not fast-allow when these appear (still run full classifier).
+_HARMFUL_HINT = re.compile(
+    r"\b(kill|bomb|terror|hack\s+into|credit\s*card\s+number|password\s+for)\b",
+    re.IGNORECASE,
+)
 
 _FAIL_CLOSED = ModerationResult(
     allowed=False,
@@ -53,11 +74,45 @@ def _parse_json_best_effort(raw: str) -> dict:
         return parsed if isinstance(parsed, dict) else {}
 
 
+def _fast_path_allow(query: str) -> ModerationResult | None:
+    """Skip the LLM for obvious on-topic queries (reduces latency and classifier noise)."""
+    q = (query or "").strip()
+    if not q or len(q) > 400:
+        return None
+    if _HARMFUL_HINT.search(q):
+        return None
+    if _WELFARE_CIVIC_HINT.search(q):
+        log_pipeline_step("moderation", "fast_allow", "keyword_prefilter")
+        return ModerationResult(allowed=True, category="welfare_scheme", redirect_message=None)
+    return None
+
+
+async def _run_moderation_llm(prompt: str) -> str:
+    """Gemini moderation call with timeout + exponential retries."""
+
+    async def _once() -> str:
+        return await with_timeout(
+            llm_service.run_moderation_raw_prompt(prompt),
+            seconds=MODERATION_CALL_TIMEOUT_S,
+            step="moderation_llm",
+        )
+
+    return await async_retry(
+        lambda: _once(),
+        attempts=API_RETRY_ATTEMPTS,
+        base_delay=API_RETRY_BASE_DELAY_S,
+        max_delay=API_RETRY_MAX_DELAY_S,
+        step="moderation_llm",
+    )
+
+
 async def _classify_intent(classifier_input: str, *, conversation: bool) -> ModerationResult:
     prompt = _build_moderation_prompt(classifier_input, conversation=conversation)
     raw = ""
     try:
-        raw = await llm_service.run_moderation_raw_prompt(prompt)
+        log_pipeline_step("moderation", "llm_start", "classifier")
+        raw = await _run_moderation_llm(prompt)
+        log_pipeline_step("moderation", "llm_ok", "classifier")
         data = _parse_json_best_effort(raw)
         allowed = bool(data.get("allowed", True))
         category = str(data.get("category", "welfare_scheme"))
@@ -111,6 +166,9 @@ async def _classify_intent(classifier_input: str, *, conversation: bool) -> Mode
 
 
 async def check(query: str, language: str) -> ModerationResult:  # noqa: ARG001 — language reserved for future heuristics
+    fp = _fast_path_allow(query)
+    if fp is not None:
+        return fp
     return await _classify_intent(query, conversation=False)
 
 

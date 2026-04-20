@@ -1,11 +1,13 @@
 /* SahayakSetu — Bharat Civic · Night Durbar */
 
 :root {
-    --color-bg: #0B0F1A;
+    --color-primary-blue: #1e3a8a;
+    --color-accent-amber: #f59e0b;
+    --color-bg: #0f1419;
     --color-surface: #131929;
     --color-border: #1E2D45;
-    --color-accent: #F07B28;
-    --color-accent-soft: rgba(240, 123, 40, 0.12);
+    --color-accent: #f59e0b;
+    --color-accent-soft: rgba(245, 158, 11, 0.14);
     --color-text: #EDE8DC;
     --color-text-muted: #8A9BB0;
     --color-success: #2ECC71;
@@ -90,7 +92,7 @@ select:focus-visible {
     height: var(--header-height);
     background: rgba(11, 15, 26, 0.92);
     backdrop-filter: blur(16px);
-    border-bottom: 2px solid var(--color-accent);
+    border-bottom: 2px solid color-mix(in srgb, var(--color-primary-blue) 70%, var(--color-accent-amber));
 }
 
 .header-inner {
@@ -121,6 +123,14 @@ select:focus-visible {
 .logo-hindi {
     font-size: 0.72rem;
     color: var(--color-text-muted);
+}
+
+.logo-assistant {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--color-primary-blue) 55%, var(--color-text-muted));
+    margin-top: 5px;
+    letter-spacing: 0.03em;
 }
 
 .header-actions {
@@ -553,7 +563,10 @@ select:focus-visible {
 }
 
 .gradient-text {
-    color: var(--color-accent);
+    background: linear-gradient(120deg, var(--color-primary-blue), var(--color-accent-amber));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .hero-subtitle {
@@ -623,13 +636,38 @@ select:focus-visible {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle at 30% 20%, #ffb347, var(--color-accent));
+    background: radial-gradient(circle at 30% 20%, var(--color-accent-amber), var(--color-primary-blue));
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
     position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.voice-btn:hover .voice-btn-inner {
+    transform: scale(1.03);
 }
 
 .voice-btn.active .voice-btn-inner {
-    box-shadow: 0 0 0 2px rgba(240, 123, 40, 0.35), 0 14px 40px rgba(0, 0, 0, 0.55);
+    box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--color-primary-blue) 45%, transparent),
+        0 0 28px color-mix(in srgb, var(--color-accent-amber) 55%, transparent),
+        0 14px 40px rgba(0, 0, 0, 0.55);
+    animation: mic-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes mic-glow {
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 3px color-mix(in srgb, var(--color-primary-blue) 45%, transparent),
+            0 0 22px color-mix(in srgb, var(--color-accent-amber) 45%, transparent),
+            0 14px 40px rgba(0, 0, 0, 0.55);
+    }
+    50% {
+        box-shadow:
+            0 0 0 4px color-mix(in srgb, var(--color-accent-amber) 50%, transparent),
+            0 0 36px color-mix(in srgb, var(--color-primary-blue) 35%, transparent),
+            0 14px 40px rgba(0, 0, 0, 0.55);
+    }
 }
 
 .voice-waveform {
@@ -721,10 +759,16 @@ select:focus-visible {
     width: 44px;
     border-radius: var(--radius-md);
     border: none;
-    background: var(--color-accent);
-    color: #1a0f08;
+    background: linear-gradient(135deg, var(--color-primary-blue), #2563eb 40%, var(--color-accent-amber));
+    color: #0c1222;
     font-weight: 700;
     cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.send-btn:hover {
+    transform: scale(1.04);
+    filter: brightness(1.08);
 }
 
 .conversation-scroll {
@@ -750,12 +794,26 @@ select:focus-visible {
     align-self: flex-end;
     background: var(--color-user-bubble);
     border-color: var(--color-border);
+    animation: msg-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .message.assistant {
     align-self: flex-start;
     background: var(--color-bot-bubble);
     border-color: var(--color-border);
+    border-left: 3px solid color-mix(in srgb, var(--color-primary-blue) 70%, var(--color-accent-amber));
+    animation: msg-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes msg-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .message.error {
@@ -953,6 +1011,278 @@ select:focus-visible {
     font-size: 0.8rem;
     color: var(--color-text);
 }
+
+/* Grounded action plan (agent) — glass card + motion */
+@keyframes ap-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes ap-shimmer {
+    0% {
+        background-position: 0% 50%;
+    }
+    100% {
+        background-position: 200% 50%;
+    }
+}
+
+.action-plan-panel {
+    margin-top: 12px;
+    padding: 16px 16px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(91, 143, 240, 0.35);
+    background:
+        linear-gradient(135deg, rgba(22, 32, 48, 0.95), rgba(19, 25, 41, 0.88)),
+        radial-gradient(120% 80% at 100% 0%, rgba(240, 123, 40, 0.12), transparent 55%);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    position: relative;
+    overflow: hidden;
+}
+
+.action-plan-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        110deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.04) 45%,
+        transparent 55%
+    );
+    background-size: 200% 100%;
+    animation: ap-shimmer 4.5s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.ap-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    position: relative;
+    z-index: 1;
+}
+
+.ap-kicker {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #7eb7ff;
+}
+
+.ap-status-badge {
+    font-size: 0.68rem;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--color-text-muted);
+    text-transform: capitalize;
+}
+
+.ap-status-plan-ready {
+    border-color: rgba(46, 204, 113, 0.45);
+    color: #7dcea0;
+    box-shadow: 0 0 0 1px rgba(46, 204, 113, 0.15);
+}
+
+.ap-status-need-more-info {
+    border-color: rgba(240, 197, 40, 0.5);
+    color: #f0d78c;
+}
+
+.ap-status-insufficient-data {
+    border-color: rgba(138, 155, 176, 0.45);
+    color: var(--color-text-muted);
+}
+
+.ap-subtitle {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin: 10px 0 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.ap-eligibility-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.ap-e-card {
+    padding: 10px 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: rgba(11, 15, 26, 0.55);
+}
+
+.ap-e-title {
+    font-size: 0.88rem;
+    margin: 6px 0 4px;
+    line-height: 1.25;
+}
+
+.ap-e-meta {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+}
+
+.ap-verdict-pill {
+    display: inline-block;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.ap-v-ok {
+    background: rgba(46, 204, 113, 0.15);
+    color: #7dcea0;
+    border: 1px solid rgba(46, 204, 113, 0.35);
+}
+
+.ap-v-mid {
+    background: rgba(240, 197, 40, 0.12);
+    color: #f0d78c;
+    border: 1px solid rgba(240, 197, 40, 0.35);
+}
+
+.ap-v-bad {
+    background: rgba(231, 76, 60, 0.12);
+    color: #f1948a;
+    border: 1px solid rgba(231, 76, 60, 0.35);
+}
+
+.ap-v-unknown {
+    background: rgba(138, 155, 176, 0.12);
+    color: var(--color-text-muted);
+    border: 1px solid rgba(138, 155, 176, 0.35);
+}
+
+.ap-doc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.ap-chip {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(91, 143, 240, 0.35);
+    background: rgba(91, 143, 240, 0.08);
+    color: #c5d7f5;
+}
+
+.ap-track {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.ap-step {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.ap-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #7eb7ff;
+    border: 1px solid rgba(91, 143, 240, 0.45);
+    background: rgba(91, 143, 240, 0.1);
+    box-shadow: 0 0 20px rgba(91, 143, 240, 0.12);
+}
+
+.ap-step strong {
+    font-size: 0.9rem;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.ap-step-detail {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    line-height: 1.45;
+}
+
+.ap-where {
+    display: block;
+    word-break: break-word;
+}
+
+.ap-time {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.7rem;
+    color: #aab6c7;
+}
+
+.ap-questions {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.82rem;
+    color: var(--color-text);
+    position: relative;
+    z-index: 1;
+}
+
+.ap-questions li {
+    margin-bottom: 6px;
+}
+
+.ap-disclaimer {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    line-height: 1.45;
+    position: relative;
+    z-index: 1;
+}
+
+.ap-animate-in {
+    opacity: 0;
+    animation: ap-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.ap-delay-1 { animation-delay: 0.04s; }
+.ap-delay-2 { animation-delay: 0.1s; }
+.ap-delay-3 { animation-delay: 0.16s; }
+.ap-delay-4 { animation-delay: 0.22s; }
+.ap-delay-5 { animation-delay: 0.28s; }
+.ap-delay-6 { animation-delay: 0.34s; }
+.ap-delay-7 { animation-delay: 0.4s; }
+.ap-delay-8 { animation-delay: 0.46s; }
 
 .confidence-meter {
     height: 6px;

@@ -6,11 +6,10 @@ import re
 
 INJECTION_PATTERNS = [
     r"ignore (all|previous|above|prior) (instructions|rules)",
-    r"you are now",
+    r"you are now (a |an )?(developer|root|admin|hacker)",
     r"system prompt",
     r"reveal.*prompt",
     r"disregard.*(rules|instructions)",
-    r"act as",
     r"<\|.*\|>",
     r"###\s*(system|instruction)",
 ]

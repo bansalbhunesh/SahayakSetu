@@ -64,38 +64,146 @@ function renderNextStepPanel(nextStep) {
     return panel;
 }
 
+function verdictClass(verdict) {
+    const v = (verdict || "").toLowerCase();
+    if (v === "eligible") return "ap-v-ok";
+    if (v === "likely_eligible") return "ap-v-mid";
+    if (v === "likely_ineligible") return "ap-v-bad";
+    return "ap-v-unknown";
+}
+
 function renderPlanPanel(plan) {
     if (!plan || typeof plan !== "object") return null;
     const steps = Array.isArray(plan.steps) ? plan.steps : [];
     const docs = Array.isArray(plan.documents_needed) ? plan.documents_needed : [];
-    const status = typeof plan.status === "string" ? plan.status.replaceAll("_", " ") : "plan";
-    if (!steps.length && !docs.length) return null;
+    const eligibility = Array.isArray(plan.eligibility) ? plan.eligibility : [];
+    const questions = Array.isArray(plan.clarifying_questions) ? plan.clarifying_questions : [];
+    const disclaimer = typeof plan.disclaimer === "string" ? plan.disclaimer.trim() : "";
+    const rawStatus = typeof plan.status === "string" ? plan.status : "";
+    const statusLabel = rawStatus ? rawStatus.replaceAll("_", " ") : "plan";
+
+    const hasBody =
+        steps.length || docs.length || eligibility.length || questions.length || disclaimer;
+    if (!hasBody) return null;
+
     const panel = document.createElement("section");
-    panel.className = "next-step";
-    const docsHtml = docs.length
-        ? `<p class="ns-plan-subtitle">Documents</p><ul class="ns-plan-list">${docs
-              .slice(0, 6)
-              .map((d) => `<li>${d}</li>`)
-              .join("")}</ul>`
-        : "";
-    const stepsHtml = steps
-        .slice(0, 4)
-        .map(
-            (step, idx) => `
-          <li class="ns-step">
-            <span class="ns-dot">${step.order || idx + 1}</span>
-            <div><strong>${step.action || "Action"}</strong><p>${step.where || step.estimated_time || ""}</p></div>
-          </li>`,
-        )
-        .join("");
-    panel.innerHTML = `
-      <header class="ns-head">
-        <span class="ns-kicker">ACTION PLAN</span>
-        <span class="ns-est">${status}</span>
-      </header>
-      ${docsHtml}
-      <ol class="ns-track">${stepsHtml}</ol>
-    `;
+    panel.className = "action-plan-panel";
+    panel.setAttribute("aria-label", "Action plan");
+
+    const head = document.createElement("header");
+    head.className = "ap-head";
+    const kicker = document.createElement("span");
+    kicker.className = "ap-kicker";
+    kicker.textContent = "Action plan";
+    const badge = document.createElement("span");
+    badge.className = `ap-status-badge ap-status-${rawStatus.replace(/_/g, "-") || "unknown"}`;
+    badge.textContent = statusLabel;
+    head.append(kicker, badge);
+    panel.appendChild(head);
+
+    if (eligibility.length) {
+        const sub = document.createElement("p");
+        sub.className = "ap-subtitle";
+        sub.textContent = "Eligibility snapshot";
+        panel.appendChild(sub);
+        const grid = document.createElement("div");
+        grid.className = "ap-eligibility-grid";
+        eligibility.slice(0, 6).forEach((row, i) => {
+            const card = document.createElement("article");
+            card.className = `ap-e-card ap-animate-in ap-delay-${Math.min(i + 1, 6)}`;
+            const v = document.createElement("span");
+            v.className = `ap-verdict-pill ${verdictClass(row.verdict)}`;
+            v.textContent = (row.verdict || "unknown").replaceAll("_", " ");
+            const title = document.createElement("h4");
+            title.className = "ap-e-title";
+            title.textContent = row.scheme || "Scheme";
+            const meta = document.createElement("p");
+            meta.className = "ap-e-meta";
+            meta.textContent = row.source_id ? `Source ${row.source_id}` : "";
+            card.append(v, title, meta);
+            grid.appendChild(card);
+        });
+        panel.appendChild(grid);
+    }
+
+    if (docs.length) {
+        const docTitle = document.createElement("p");
+        docTitle.className = "ap-subtitle";
+        docTitle.textContent = "Documents to keep ready";
+        panel.appendChild(docTitle);
+        const chips = document.createElement("div");
+        chips.className = "ap-doc-chips";
+        docs.slice(0, 10).forEach((d, i) => {
+            const span = document.createElement("span");
+            span.className = `ap-chip ap-animate-in ap-delay-${Math.min(i + 1, 6)}`;
+            span.textContent = d;
+            chips.appendChild(span);
+        });
+        panel.appendChild(chips);
+    }
+
+    if (steps.length) {
+        const stTitle = document.createElement("p");
+        stTitle.className = "ap-subtitle";
+        stTitle.textContent = "Steps";
+        panel.appendChild(stTitle);
+        const track = document.createElement("ol");
+        track.className = "ap-track";
+        steps.slice(0, 8).forEach((step, idx) => {
+            const li = document.createElement("li");
+            li.className = `ap-step ap-animate-in ap-delay-${Math.min(idx + 1, 8)}`;
+            const dot = document.createElement("span");
+            dot.className = "ap-dot";
+            dot.textContent = String(step.order || idx + 1);
+            const body = document.createElement("div");
+            const strong = document.createElement("strong");
+            strong.textContent = step.action || "Action";
+            const detail = document.createElement("p");
+            detail.className = "ap-step-detail";
+            const where = (step.where || "").trim();
+            const est = (step.estimated_time || "").trim();
+            if (where) {
+                const w = document.createElement("span");
+                w.className = "ap-where";
+                w.textContent = where;
+                detail.appendChild(w);
+            }
+            if (est) {
+                const t = document.createElement("span");
+                t.className = "ap-time";
+                t.textContent = est;
+                detail.appendChild(t);
+            }
+            body.append(strong, detail);
+            li.append(dot, body);
+            track.appendChild(li);
+        });
+        panel.appendChild(track);
+    }
+
+    if (questions.length) {
+        const qTitle = document.createElement("p");
+        qTitle.className = "ap-subtitle";
+        qTitle.textContent = "To tailor this further";
+        panel.appendChild(qTitle);
+        const ul = document.createElement("ul");
+        ul.className = "ap-questions";
+        questions.slice(0, 5).forEach((q, i) => {
+            const li = document.createElement("li");
+            li.className = `ap-animate-in ap-delay-${Math.min(i + 1, 5)}`;
+            li.textContent = q;
+            ul.appendChild(li);
+        });
+        panel.appendChild(ul);
+    }
+
+    if (disclaimer) {
+        const foot = document.createElement("footer");
+        foot.className = "ap-disclaimer";
+        foot.textContent = disclaimer;
+        panel.appendChild(foot);
+    }
+
     return panel;
 }
 

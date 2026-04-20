@@ -106,8 +106,12 @@ async def get_history(user_id: str) -> list[dict]:
             except Exception:
                 continue
         return out
-    except Exception:
-        # Best-effort memory: never block user flow due to cache/storage outages.
+    except Exception as e:
+        logger.warning(
+            "session_history_unavailable",
+            extra={"error": str(e)[:200]},
+            exc_info=True,
+        )
         return []
 
 
