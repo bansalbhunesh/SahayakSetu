@@ -319,4 +319,17 @@ async def handle_search(request: Request, search_request: SearchRequest):
         raise
     except Exception as e:
         logger.exception("search_router_error")
-        raise HTTPException(status_code=500, detail="Internal error") from e
+        guided_answer, guided_next_step = _guided_fallback(search_request.language)
+        return SearchResponse(
+            answer=guided_answer,
+            provider="error-fallback",
+            sources=[],
+            moderation_blocked=False,
+            redirect_message=None,
+            reasoning_why=None,
+            near_miss_text=None,
+            near_miss_sources=[],
+            session_user_id=search_request.user_id,
+            confidence="low",
+            next_step=guided_next_step,
+        )
