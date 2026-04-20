@@ -48,7 +48,7 @@ _STOPWORDS = {"the", "a", "an", "is", "are", "of", "to", "for", "in", "and", "or
 _NUMBER_RE = re.compile(r"\b\d[\d,./-]*\b")
 _URL_RE = re.compile(r"https?://\S+")
 _DATE_RE = re.compile(r"\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4})\b")
-_EMBEDDER = TextEmbedding("BAAI/bge-m3")
+_EMBEDDER = TextEmbedding("BAAI/bge-small-en-v1.5")
 
 
 def _tokens(text: str) -> set[str]:

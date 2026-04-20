@@ -1,20 +1,30 @@
-"""FastAPI application factory — wiring only."""
+"""FastAPI application factory — wiring + safety middleware."""
 
-from fastapi import FastAPI
+import logging
+import uuid
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from backend.config import (
+    ALLOWED_ORIGINS,
     CHAT_COMPLETIONS_SECRET,
     CHAT_MODEL,
+    ENV,
     FRONTEND_ORIGIN,
     GROQ_API_KEY,
     MODERATION_STRICT,
     QDRANT_URL,
 )
+from backend.logging_setup import setup_logging, trace_id_var
 from backend.rate_limit import limiter
 from backend.routers import health_router, search_router, voice_router
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -24,15 +34,29 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[FRONTEND_ORIGIN],
+        allow_origins=ALLOWED_ORIGINS or [FRONTEND_ORIGIN],
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "X-User-Id", "X-SahayakSetu-Key"],
     )
 
+    @app.middleware("http")
+    async def trace_middleware(request: Request, call_next):
+        trace_id = request.headers.get("x-trace-id") or uuid.uuid4().hex
+        trace_id_var.set(trace_id)
+        response = await call_next(request)
+        response.headers["X-Trace-Id"] = trace_id
+        return response
+
     app.include_router(health_router.router)
     app.include_router(search_router.router)
     app.include_router(voice_router.router)
+
+    @app.exception_handler(Exception)
+    async def safe_exception_handler(request: Request, exc: Exception):
+        ref = uuid.uuid4().hex[:8]
+        logger.exception("unhandled_exception", extra={"path": request.url.path, "ref": ref})
+        return JSONResponse(status_code=500, content={"detail": f"Internal error. Reference: {ref}"})
 
     @app.on_event("startup")
     async def startup_event():
@@ -49,6 +73,7 @@ def create_app() -> FastAPI:
             print("   /chat/completions: auth enabled (Bearer or X-SahayakSetu-Key)")
         else:
             print("   /chat/completions: auth disabled — set CHAT_COMPLETIONS_SECRET in production")
+        print(f"   ENV: {ENV}")
 
     return app
 

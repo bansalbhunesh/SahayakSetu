@@ -13,6 +13,10 @@ services:
         value: gemini-2.0-flash
       - key: FRONTEND_ORIGIN
         value: https://sahayaksetu.vercel.app
+      - key: ALLOWED_ORIGINS
+        value: https://sahayaksetu.vercel.app
+      - key: ENV
+        value: production
       # Fail-closed on moderation classifier errors (see MODERATION_STRICT in config).
       - key: MODERATION_STRICT
         value: "true"
@@ -41,3 +45,5 @@ services:
       # Same value as Vapi custom-LLM credential (Bearer or X-SahayakSetu-Key).
       - sync: false
         key: CHAT_COMPLETIONS_SECRET
+      - sync: false
+        key: VAPI_WEBHOOK_SECRET

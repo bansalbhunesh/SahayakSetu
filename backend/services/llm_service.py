@@ -304,6 +304,22 @@ async def generate_json(messages: list[dict]) -> tuple[dict, str]:
         raise HTTPException(status_code=500, detail=f"Structured JSON generation failed: {e}") from e
 
 
+async def generate_json_prompt(prompt: str) -> tuple[dict, str]:
+    """Single-prompt strict JSON generation helper."""
+    try:
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config={
+                "response_mime_type": "application/json",
+                "temperature": 0.1,
+            },
+        )
+        parsed = json.loads((response.text or "{}").strip())
+        return (parsed if isinstance(parsed, dict) else {}), CHAT_MODEL
+    except Exception:
+        return {}, CHAT_MODEL
+
+
 async def rewrite_query(query: str, language: str) -> str:
     """Query rewrite for retrieval recall. Fail-open to original query."""
     prompt = (

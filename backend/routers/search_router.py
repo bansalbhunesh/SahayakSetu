@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Request
 
 from backend.config import (
@@ -12,15 +14,19 @@ from backend.rate_limit import limiter
 from backend.models.request_models import SearchRequest
 from backend.models.response_models import SchemeSource, SearchResponse
 from backend.services import (
+    agent_service,
     cache_service,
     grounding_service,
+    injection_guard,
     llm_service,
     moderation_service,
+    pii_scrubber,
     retrieval_service,
     session_service,
 )
 
 router = APIRouter(tags=["search"])
+logger = logging.getLogger(__name__)
 
 
 def _confidence_bucket(top_score: float) -> str:
@@ -58,13 +64,28 @@ def _guided_fallback(language: str) -> tuple[str, str]:
 async def handle_search(request: Request, search_request: SearchRequest):
     try:
         raw_user_id, signed_user_id = session_service.resolve_user_id(search_request.user_id)
-        cached = await cache_service.get(search_request.query, search_request.language)
+        raw_query = search_request.query or ""
+        safe_query, suspicious = injection_guard.sanitize_query(raw_query)
+        if suspicious:
+            # Soft-fail behavior: treat as off-topic/harmful style and avoid retrieval.
+            return SearchResponse(
+                answer=None,
+                provider=None,
+                sources=[],
+                moderation_blocked=True,
+                moderation_category="harmful",
+                redirect_message="Please ask only about government schemes and civic services.",
+                session_user_id=signed_user_id,
+            )
+
+        clean_query, pii_hits = pii_scrubber.scrub(safe_query)
+        cached = await cache_service.get(clean_query, search_request.language)
         if cached:
             cached["session_user_id"] = signed_user_id
             return SearchResponse(**cached)
 
         moderation = await moderation_service.check(
-            search_request.query,
+            clean_query,
             search_request.language,
         )
         if not moderation.allowed:
@@ -78,7 +99,7 @@ async def handle_search(request: Request, search_request: SearchRequest):
                 or "Please ask about Indian government schemes or civic services.",
             )
 
-        original_query = (search_request.query or "").strip()
+        original_query = clean_query.strip()
         if len(original_query) > 300:
             guided_answer, guided_next_step = _guided_fallback(search_request.language)
             qtype = _query_type(original_query)
@@ -105,6 +126,7 @@ async def handle_search(request: Request, search_request: SearchRequest):
             "original": original_query,
             "rewritten": rewritten_query,
             "type": qtype,
+            "pii_redactions": pii_hits,
         }
         relevant_results, near_miss_results, context, near_miss_context = (
             retrieval_service.retrieve_for_rag(
@@ -184,9 +206,13 @@ async def handle_search(request: Request, search_request: SearchRequest):
                 detail="Service temporarily at capacity. Please try again later.",
             )
 
+        quota_ok = await session_service.check_user_llm_quota(raw_user_id)
+        if not quota_ok:
+            raise HTTPException(status_code=429, detail="Daily limit reached. Try tomorrow.")
+
         history = await session_service.get_history(raw_user_id)
         messages = llm_service.build_messages(
-            search_request.query,
+            original_query,
             context,
             history,
             search_request.language,
@@ -228,7 +254,15 @@ async def handle_search(request: Request, search_request: SearchRequest):
             reasoning_why,
             near_miss_text,
         )
-        await session_service.append(raw_user_id, search_request.query, session_text)
+        await session_service.append(raw_user_id, original_query, session_text)
+
+        profile = agent_service.UserProfile(**(search_request.profile or {}))
+        plan = await agent_service.build_plan(
+            original_query,
+            profile,
+            relevant_results,
+            search_request.language,
+        )
 
         sources = [
             SchemeSource(
@@ -272,15 +306,17 @@ async def handle_search(request: Request, search_request: SearchRequest):
             ),
             retrieval_debug=retrieval_debug,
             query_debug=query_debug,
+            plan=plan.model_dump(),
         )
         cached_payload = response.model_dump()
         cached_payload.pop("session_user_id", None)
         cached_payload.pop("retrieval_debug", None)
         cached_payload.pop("query_debug", None)
-        await cache_service.set(search_request.query, search_request.language, cached_payload)
+        cached_payload.pop("plan", None)
+        await cache_service.set(clean_query, search_request.language, cached_payload)
         return response
     except HTTPException:
         raise
     except Exception as e:
-        print(f"API Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        logger.exception("search_router_error")
+        raise HTTPException(status_code=500, detail="Internal error") from e

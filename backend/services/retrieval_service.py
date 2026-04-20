@@ -14,6 +14,7 @@ from backend.config import (
     RAG_VECTOR_QUERY_LIMIT,
     qdrant_client,
 )
+from backend.services.injection_guard import wrap_retrieved_chunk
 
 
 @dataclass
@@ -278,7 +279,7 @@ def build_context_from_results(results: list[SearchResult]) -> str:
     parts: list[str] = []
     for i, result in enumerate(results, start=1):
         sid = result.source_id or f"S{i}"
-        chunk = result.document
+        chunk = wrap_retrieved_chunk(result.document)
         extras: list[str] = []
         if result.apply_link:
             extras.append(f"Official apply / learn more: {result.apply_link}")

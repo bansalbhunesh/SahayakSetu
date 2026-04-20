@@ -26,6 +26,7 @@ class SearchResponse(BaseModel):
     next_step: str | None = None
     retrieval_debug: dict | None = None
     query_debug: dict | None = None
+    plan: dict | None = None
 
 
 

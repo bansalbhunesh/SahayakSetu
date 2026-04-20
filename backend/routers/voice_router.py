@@ -7,7 +7,13 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from slowapi.util import get_remote_address
 
-from backend.config import BACKEND_URL, CHAT_COMPLETIONS_SECRET, SIMILARITY_THRESHOLD
+from backend.config import (
+    BACKEND_URL,
+    CHAT_COMPLETIONS_SECRET,
+    ENV,
+    SIMILARITY_THRESHOLD,
+    VAPI_WEBHOOK_SECRET,
+)
 from backend.rate_limit import limiter
 from backend.services import moderation_service, retrieval_service
 from backend.services.language_hint import infer_bcp47
@@ -29,6 +35,17 @@ def _verify_chat_completions_secret(request: Request) -> None:
         token.encode("utf-8"), CHAT_COMPLETIONS_SECRET.encode("utf-8")
     ):
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def _verify_vapi_signature(request: Request, raw_body: bytes) -> None:
+    if not VAPI_WEBHOOK_SECRET:
+        if ENV == "production":
+            raise HTTPException(status_code=500, detail="Webhook secret not configured")
+        return
+    sig = (request.headers.get("x-vapi-signature") or "").strip()
+    expected = hmac.new(VAPI_WEBHOOK_SECRET.encode("utf-8"), raw_body, "sha256").hexdigest()
+    if len(sig) != len(expected) or not hmac.compare_digest(sig, expected):
+        raise HTTPException(status_code=401, detail="Invalid signature")
 
 
 def _message_plaintext(content: Any) -> str:
@@ -85,7 +102,9 @@ def _conversation_transcript_for_moderation(messages: list[Any], max_chars: int 
     or get_remote_address(request),
 )
 async def handle_vapi_webhook(request: Request):
-    webhook_body: dict[str, Any] = await request.json()
+    raw_body = await request.body()
+    _verify_vapi_signature(request, raw_body)
+    webhook_body: dict[str, Any] = json.loads(raw_body)
     message = webhook_body.get("message", {})
 
     if message.get("type") == "assistant-request":
