@@ -1,7 +1,8 @@
 import os
 import json
 import time
-from typing import List, Optional
+import asyncio
+from typing import List, Optional, Tuple, Dict
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,15 +27,26 @@ if not QDRANT_URL or not GEMINI_API_KEY:
     raise RuntimeError(f"Missing required env vars. QDRANT_URL={'set' if QDRANT_URL else 'MISSING'}, GEMINI_API_KEY={'set' if GEMINI_API_KEY else 'MISSING'}")
 
 # Initialize Clients
-qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-qdrant.set_model("BAAI/bge-small-en-v1.5")
+try:
+    qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+    qdrant.set_model("BAAI/bge-small-en-v1.5")
+    qdrant.get_collections()  # Force connection test at startup
+    print(f"[OK] Qdrant connected: {QDRANT_URL[:30]}...")
+except Exception as _qdrant_err:
+    raise RuntimeError(f"Qdrant connection failed: {_qdrant_err}")
 
 genai.configure(api_key=GEMINI_API_KEY)
 llm_model = genai.GenerativeModel(CHAT_MODEL)
 
 groq_client = None
+GROQ_API_KEY = (GROQ_API_KEY or "").strip()
 if GROQ_API_KEY:
-    groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+    try:
+        groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+        print("[OK] Groq fallback client initialized")
+    except Exception as _groq_err:
+        print(f"[WARNING] Groq initialization failed: {_groq_err}")
+        groq_client = None
 
 # Audit v5 Restoration: Protected In-Memory Store
 conversation_store = {}
@@ -65,7 +77,7 @@ You are SahayakSetu, the official AI bridge for Indian welfare. You handle langu
 """
 
 @app.on_event("startup")
-async def startup_event():
+def startup_event():
     print(f"\n[STARTUP] SahayakSetu - Intelligence Activated")
     print(f"   Primary: {CHAT_MODEL}")
     print(f"   Fallback: {'Groq-Llama-3.3' if groq_client else 'None'}")
@@ -79,26 +91,34 @@ def health():
 def read_root():
     return {"status": "SahayakSetu Backend Online", "model": CHAT_MODEL}
 
-async def generate_response(messages: list):
-    """Audit v5 Restoration: High-Fidelity Exception Logging."""
+async def generate_response(messages: List[Dict]) -> Tuple[str, str]:
+    """Generate LLM response with async-safe blocking calls and 30s timeout."""
     try:
         prompt_parts = [f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n"]
         for msg in messages:
             if msg["role"] != "system":
                 role = "User" if msg["role"] == "user" else "Assistant"
                 prompt_parts.append(f"{role}: {msg['content']}")
-        
+
         full_prompt = "\n".join(prompt_parts)
-        response = llm_model.generate_content(full_prompt)
+        response = await asyncio.wait_for(
+            asyncio.to_thread(llm_model.generate_content, full_prompt),
+            timeout=30.0
+        )
         return response.text, CHAT_MODEL
     except Exception as e:
         print(f"[WARNING] Primary LLM {CHAT_MODEL} failed: {e}")
         if groq_client:
             try:
-                response = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=messages,
-                    temperature=0.7
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        groq_client.chat.completions.create,
+                        model="llama-3.3-70b-versatile",
+                        messages=messages,
+                        temperature=0.7,
+                        timeout=30
+                    ),
+                    timeout=35.0
                 )
                 return response.choices[0].message.content, "groq-llama-3.3"
             except Exception as ge:
@@ -106,83 +126,144 @@ async def generate_response(messages: list):
                 raise HTTPException(status_code=500, detail=f"Both LLMs failed. Gemini: {e}, Groq: {ge}")
         raise HTTPException(status_code=500, detail=str(e))
 
+MAX_QUERY_LENGTH = 500
+CONVERSATION_TTL = 3600  # seconds
+
+
+def _get_metadata_field(metadata, field: str, default: str) -> str:
+    if isinstance(metadata, dict):
+        return metadata.get(field, default)
+    return getattr(metadata, field, default)
+
+
+def _cleanup_conversation_store():
+    now = time.time()
+    expired = [uid for uid, conv in conversation_store.items()
+               if now - conv.get("ts", now) > CONVERSATION_TTL]
+    for uid in expired:
+        del conversation_store[uid]
+    # Hard cap: if still over 500, evict oldest by timestamp
+    if len(conversation_store) > 500:
+        sorted_keys = sorted(conversation_store, key=lambda k: conversation_store[k].get("ts", 0))
+        for key in sorted_keys[:len(conversation_store) - 500]:
+            del conversation_store[key]
+
+
 @app.post("/api/search")
 async def api_search(data: SearchQuery):
+    if not data.query or not data.query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    if len(data.query) > MAX_QUERY_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Query exceeds {MAX_QUERY_LENGTH} characters")
+
+    query = data.query.strip()
     try:
-        search_results = qdrant.query(collection_name="sahayak_schemes", query_text=data.query, limit=3)
-        relevant = [p for p in search_results if p.score > 0.2]
-        context = "\n\n".join([p.document for p in relevant])
-        
-        # Memory Protection: Fetch history
-        history = conversation_store.get(data.user_id, [])
+        search_results = qdrant.query(collection_name="sahayak_schemes", query_text=query, limit=3)
+        relevant = [p for p in (search_results or []) if hasattr(p, "score") and p.score > 0.2]
+        context = "\n\n".join([p.document for p in relevant if hasattr(p, "document")]) or "No relevant schemes found."
+
+        history = conversation_store.get(data.user_id, {}).get("msgs", [])
         messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nTARGET RESPONSE LANGUAGE: {data.language}"}]
         messages.extend(history[-4:])
-        messages.append({"role": "user", "content": f"Database Context:\n{context}\n\nQuestion: {data.query}"})
-        
+        messages.append({"role": "user", "content": f"Database Context:\n{context}\n\nQuestion: {query}"})
+
         text, provider = await generate_response(messages)
-        
-        # Memory Protection: Truncate history to avoid RAM bloat
-        history.append({"role": "user", "content": data.query})
+
+        history.append({"role": "user", "content": query})
         history.append({"role": "assistant", "content": text})
-        conversation_store[data.user_id] = history[-20:] # Keep last 10 exchanges
-        
-        # Memory Protection: Clear oldest entries if store is too large
-        if len(conversation_store) > 500:
-            for key in list(conversation_store.keys())[:100]:
-                del conversation_store[key]
-        
+        conversation_store[data.user_id] = {"msgs": history[-20:], "ts": time.time()}
+
+        _cleanup_conversation_store()
+
         return {
             "answer": text,
             "provider": provider,
-            "sources": [{"scheme": p.metadata.get("scheme", "Scheme"), "score": p.score} for p in relevant]
+            "sources": [
+                {"scheme": _get_metadata_field(p.metadata, "scheme", "Scheme"), "score": p.score}
+                for p in relevant
+            ]
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"API Error: {e}")
+        print(f"[ERROR] /api/search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/vapi-webhook")
 async def vapi_webhook(request: Request):
-    body = await request.json()
-    message = body.get("message", {})
-    
-    if message.get("type") == "assistant-request":
-        return JSONResponse(content={
-            "assistant": {
-                "model": {"provider": "custom-llm", "url": f"{BACKEND_URL}/chat/completions"},
-                "voice": {"provider": "azure", "voiceId": "hi-IN-SwaraNeural"},
-                "firstMessage": "Namaste! Main SahayakSetu hoon. Aap kisi bhi sarkari yojna ke baare mein pooch sakte hain."
-            }
-        })
-    
-    if message.get("type") == "tool-calls":
-        tool_calls = message.get("toolCalls", [])
-        results = []
-        for call in tool_calls:
-            if call["function"]["name"] == "search_schemes":
-                args = json.loads(call["function"]["arguments"])
-                search_results = qdrant.query(collection_name="sahayak_schemes", query_text=args.get("query"), limit=3)
-                context = "\n".join([p.document for p in search_results if p.score > 0.2])
-                results.append({"toolCallId": call["id"], "result": context or "Mujhe details nahi mili."})
-        return JSONResponse(content={"results": results})
-    
-    return JSONResponse(content={})
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="Invalid request body")
+        message = body.get("message", {})
+        if not isinstance(message, dict):
+            raise HTTPException(status_code=400, detail="Invalid message field")
+
+        if message.get("type") == "assistant-request":
+            return JSONResponse(content={
+                "assistant": {
+                    "model": {"provider": "custom-llm", "url": f"{BACKEND_URL}/chat/completions"},
+                    "voice": {"provider": "azure", "voiceId": "hi-IN-SwaraNeural"},
+                    "firstMessage": "Namaste! Main SahayakSetu hoon. Aap kisi bhi sarkari yojna ke baare mein pooch sakte hain."
+                }
+            })
+
+        if message.get("type") == "tool-calls":
+            tool_calls = message.get("toolCalls", [])
+            results = []
+            for call in tool_calls:
+                call_id = call.get("id", "unknown")
+                try:
+                    if call.get("function", {}).get("name") == "search_schemes":
+                        args = json.loads(call["function"]["arguments"])
+                        query = args.get("query", "").strip()
+                        if not query:
+                            results.append({"toolCallId": call_id, "result": "Query is empty."})
+                            continue
+                        search_results = qdrant.query(
+                            collection_name="sahayak_schemes", query_text=query, limit=3
+                        )
+                        context = "\n".join([
+                            p.document for p in (search_results or [])
+                            if hasattr(p, "score") and p.score > 0.2 and hasattr(p, "document")
+                        ])
+                        results.append({"toolCallId": call_id, "result": context or "Mujhe details nahi mili."})
+                except (json.JSONDecodeError, KeyError) as call_err:
+                    print(f"[ERROR] vapi tool-call processing failed: {call_err}")
+                    results.append({"toolCallId": call_id, "result": "Tool call processing failed."})
+            return JSONResponse(content={"results": results})
+
+        return JSONResponse(content={})
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] /vapi-webhook failed: {e}")
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
 
 @app.post("/chat/completions")
 async def chat_completions(request: Request):
-    body = await request.json()
-    messages = body.get("messages", [])
-    text, provider = await generate_response(messages)
-    return {
-        "id": f"chatcmpl-{int(time.time())}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": provider,
-        "choices": [{
-            "index": 0,
-            "message": {"role": "assistant", "content": text},
-            "finish_reason": "stop"
-        }]
-    }
+    try:
+        body = await request.json()
+        messages = body.get("messages", [])
+        if not messages:
+            raise HTTPException(status_code=400, detail="messages field is required")
+        text, provider = await generate_response(messages)
+        return {
+            "id": f"chatcmpl-{int(time.time())}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": provider,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": text},
+                "finish_reason": "stop"
+            }]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] /chat/completions failed: {e}")
+        raise HTTPException(status_code=500, detail="LLM request failed")
 
 if __name__ == "__main__":
     import uvicorn
