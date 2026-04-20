@@ -1,6 +1,12 @@
 from pydantic import BaseModel, Field
 
 
+class EligibilityHint(BaseModel):
+    scheme: str
+    verdict: str  # likely_eligible | likely_ineligible | unknown
+    reason: str
+
+
 class SchemeSource(BaseModel):
     scheme: str
     score: float
@@ -27,6 +33,7 @@ class SearchResponse(BaseModel):
     retrieval_debug: dict | None = None
     query_debug: dict | None = None
     plan: dict | None = None
+    eligibility_hints: list[EligibilityHint] = Field(default_factory=list)
 
 
 

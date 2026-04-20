@@ -52,6 +52,8 @@ def build_messages(
     citation_index_block: str = "",
     source_index_block: str = "",
     json_mode: bool = False,
+    detected_query_language: str | None = None,
+    language_register_hint: str | None = None,
 ) -> list[dict]:
     from backend.config import LLM_HISTORY_MESSAGE_LIMIT
 
@@ -97,10 +99,19 @@ def build_messages(
             f"{STRUCTURED_SUFFIX}"
         )
 
+    lang_extra = ""
+    if detected_query_language or language_register_hint:
+        parts = []
+        if detected_query_language:
+            parts.append(f"AUTODETECTED_QUERY_LANGUAGE (ISO 639-1): {detected_query_language}.")
+        if language_register_hint:
+            parts.append(language_register_hint)
+        lang_extra = "\n\n" + " ".join(parts)
+
     messages: list[dict] = [
         {
             "role": "system",
-            "content": f"{SYSTEM_PROMPT}\n\nTARGET RESPONSE LANGUAGE: {language}",
+            "content": f"{SYSTEM_PROMPT}\n\nTARGET RESPONSE LANGUAGE: {language}{lang_extra}",
         }
     ]
     if history:

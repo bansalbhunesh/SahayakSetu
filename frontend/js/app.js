@@ -1,4 +1,4 @@
-import { BACKEND_URL, INDIAN_STATES, VAPI_ASSISTANT_ID, VAPI_PUBLIC_KEY } from "./constants.js";
+import { BACKEND_URL, INDIAN_STATES, USE_CONTINUOUS_VOICE, VAPI_ASSISTANT_ID, VAPI_PUBLIC_KEY } from "./constants.js";
 import {
     appendMessageToChat,
     downloadConversationTranscript,
@@ -10,7 +10,25 @@ import {
     updateLanguageUI,
 } from "./chat.js";
 import { appState, setSessionUserId } from "./state.js";
-import { setVoiceButtonState, speakResponseText, startBrowserSpeechFallback } from "./voice.js";
+
+function setVoiceLiveCaption(text) {
+    const el = document.getElementById("voiceLiveCaption");
+    if (!el) return;
+    const t = (text || "").trim();
+    if (!t) {
+        el.textContent = "";
+        el.classList.add("hidden");
+        return;
+    }
+    el.textContent = t;
+    el.classList.remove("hidden");
+}
+import {
+    setVoiceButtonState,
+    speakResponseText,
+    startBrowserSpeechFallback,
+    stopBrowserSpeechRecognition,
+} from "./voice.js";
 
 function populateStateSelect() {
     const select = document.getElementById("finderState");
@@ -212,6 +230,7 @@ async function submitQuery(query) {
             nextStep: payload.next_step,
             queryDebug: payload.query_debug,
             plan: payload.plan,
+            eligibilityHints: payload.eligibility_hints || [],
         });
         if (payload.retrieval_debug) {
             appState.lastRetrievalDebug = payload.retrieval_debug;
@@ -225,10 +244,15 @@ async function submitQuery(query) {
         switchSidebarTab("evidence");
         pulseEvidenceTab();
 
-        if (!appState.vapiInstance || !appState.isVoiceCallActive) {
-            speakResponseText(stripCitationMarkers(payload.answer), appState.selectedLanguage);
+        const canBrowserTts = !appState.vapiInstance || !appState.isVoiceCallActive;
+        if (canBrowserTts && payload.answer) {
+            speakResponseText(stripCitationMarkers(payload.answer), appState.selectedLanguage, {
+                onStart: () => setStatusIndicator("Speaking...", "blue"),
+                onEnd: () => setStatusIndicator("Ready", "green"),
+            });
+        } else {
+            setStatusIndicator("Ready", "green");
         }
-        setStatusIndicator("Ready", "green");
     } catch {
         removeTypingIndicator();
         appendMessageToChat(
@@ -301,6 +325,7 @@ function bindVapiEventHandlers() {
     if (!appState.vapiInstance) return;
     appState.vapiInstance.on("call-start", () => {
         appState.isVoiceCallActive = true;
+        appState.browserRecognitionActive = false;
         setVoiceButtonState(true);
         setStatusIndicator("Listening...", "green");
     });
@@ -318,9 +343,15 @@ function bindVapiEventHandlers() {
 
 function handleVoiceToggle() {
     if (appState.isVoiceCallActive) {
-        if (appState.vapiInstance) appState.vapiInstance.stop();
+        if (appState.browserRecognitionActive) {
+            stopBrowserSpeechRecognition();
+        } else if (appState.vapiInstance) {
+            appState.vapiInstance.stop();
+        }
         appState.isVoiceCallActive = false;
+        appState.browserRecognitionActive = false;
         setVoiceButtonState(false);
+        setVoiceLiveCaption("");
         setStatusIndicator("Ready", "green");
         return;
     }
@@ -330,15 +361,24 @@ function handleVoiceToggle() {
     }
     const started = startBrowserSpeechFallback({
         selectedLanguage: appState.selectedLanguage,
+        continuous: USE_CONTINUOUS_VOICE,
+        onInterim: (live) => {
+            setVoiceLiveCaption(live);
+            setStatusIndicator("Listening...", "green");
+        },
         onStart: () => {
             setStatusIndicator("Listening...", "green");
             setVoiceButtonState(true);
             appState.isVoiceCallActive = true;
+            appState.browserRecognitionActive = true;
+            setVoiceLiveCaption("");
         },
         onStop: () => {
             setVoiceButtonState(false);
+            setVoiceLiveCaption("");
             setStatusIndicator("Ready", "green");
             appState.isVoiceCallActive = false;
+            appState.browserRecognitionActive = false;
         },
         onUserText: (query) => {
             appendMessageToChat("user", query);

@@ -326,6 +326,31 @@ function appendCitationFootnotes(wrap, sources) {
     wrap.appendChild(block);
 }
 
+function verdictEmoji(verdict) {
+    if (verdict === "likely_eligible") return "✅";
+    if (verdict === "likely_ineligible") return "❌";
+    return "❓";
+}
+
+function renderEligibilityHintsPanel(hints) {
+    if (!Array.isArray(hints) || !hints.length) return null;
+    const panel = document.createElement("div");
+    panel.className = "eligibility-hints-panel";
+    const h = document.createElement("div");
+    h.className = "eligibility-hints-title";
+    h.textContent = "Eligibility snapshot (heuristic — confirm on official portals)";
+    panel.appendChild(h);
+    hints.forEach((row) => {
+        const line = document.createElement("div");
+        line.className = "eligibility-hint-row";
+        const scheme = row.scheme || "Scheme";
+        const reason = row.reason || "";
+        line.textContent = `${verdictEmoji(row.verdict)} ${scheme} — ${reason}`;
+        panel.appendChild(line);
+    });
+    return panel;
+}
+
 function appendAssistantSourceLinks(container, sources, headingText) {
     if (!Array.isArray(sources) || !sources.length) return;
     const rows = sources.filter((s) => s.apply_link || s.source);
@@ -483,6 +508,9 @@ export function appendMessageToChat(role, content, options = {}) {
         wrap.appendChild(panel);
     }
 
+    const eligPanel = renderEligibilityHintsPanel(options.eligibilityHints);
+    if (eligPanel) wrap.appendChild(eligPanel);
+
     appendAssistantSourceLinks(wrap, options.sources || [], "Official portals (verified)");
     const next = renderNextStepPanel(options.nextStep);
     if (next) wrap.appendChild(next);
@@ -532,7 +560,8 @@ export function setStatusIndicator(text, colorKey) {
             blue: "#5dade2",
         };
         d.style.background = colorMap[colorKey] || colorMap.green;
-        const pulse = text === "Thinking..." || text === "Listening...";
+        const pulse =
+            text === "Thinking..." || text === "Listening..." || text === "Speaking...";
         d.classList.toggle("pulse", pulse);
     }
 }

@@ -15,12 +15,14 @@ from backend.config import (
     SIMILARITY_THRESHOLD,
 )
 from backend.models.request_models import SearchRequest
-from backend.models.response_models import SchemeSource, SearchResponse
+from backend.models.response_models import EligibilityHint, SchemeSource, SearchResponse
 from backend.services import (
     agent_service,
     cache_service,
+    eligibility_service,
     grounding_service,
     injection_guard,
+    language_service,
     llm_service,
     moderation_service,
     pii_scrubber,
@@ -121,12 +123,21 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
                 query_debug={"original": original_query, "rewritten": original_query, "type": qtype},
             )
 
+        normalized_surface = language_service.normalize_hinglish(original_query)
+        detected_lang = language_service.detect_language_code(normalized_surface or original_query)
+        lang_register_hint = language_service.register_hint(detected_lang, search_request.language)
+
         qtype = _query_type(original_query)
-        rewritten_query = original_query
-        if len(original_query.split()) <= 5:
-            rewritten_query = await llm_service.rewrite_query(original_query, search_request.language)
+        rewritten_base = (normalized_surface or original_query).strip() or original_query
+        rewritten_query = rewritten_base
+        if len(rewritten_base.split()) <= 5:
+            rewritten_query = await llm_service.rewrite_query(rewritten_base, search_request.language)
         query_debug = {
             "original": original_query,
+            "hinglish_normalized": normalized_surface
+            if normalized_surface.strip() != original_query.strip()
+            else None,
+            "detected_language": detected_lang,
             "rewritten": rewritten_query,
             "type": qtype,
             "pii_redactions": pii_hits,
@@ -242,6 +253,8 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
             citation_index_block=citation_index_block,
             source_index_block=source_index_block,
             json_mode=LLM_JSON_MODE,
+            detected_query_language=detected_lang,
+            language_register_hint=lang_register_hint,
         )
         answer_main = fallback
         reasoning_why = near_miss_text = None
@@ -316,6 +329,13 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
             )
             for result in near_miss_results
         ]
+        raw_hints = eligibility_service.hints_for_schemes(
+            search_request.profile or {},
+            relevant_results,
+            query=original_query,
+        )
+        eligibility_hints = [EligibilityHint(**h) for h in raw_hints]
+
         response = SearchResponse(
             answer=answer_main,
             provider=provider,
@@ -335,12 +355,14 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
             retrieval_debug=retrieval_debug,
             query_debug=query_debug,
             plan=plan.model_dump(),
+            eligibility_hints=eligibility_hints,
         )
         cached_payload = response.model_dump()
         cached_payload.pop("session_user_id", None)
         cached_payload.pop("retrieval_debug", None)
         cached_payload.pop("query_debug", None)
         cached_payload.pop("plan", None)
+        cached_payload.pop("eligibility_hints", None)
         await cache_service.set(clean_query, search_request.language, cached_payload)
         log_pipeline_step("search", "complete", "ok")
         return response

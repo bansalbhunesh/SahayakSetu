@@ -3,6 +3,8 @@ import { SESSION_USER_ID_KEY } from "./constants.js";
 export const appState = {
     vapiInstance: null,
     isVoiceCallActive: false,
+    /** True when using Web Speech (not Vapi); used so Stop targets the right transport. */
+    browserRecognitionActive: false,
     selectedLanguage: "hi-IN",
     sessionUserId: localStorage.getItem(SESSION_USER_ID_KEY) || "",
     sessionSchemeNames: new Set(),

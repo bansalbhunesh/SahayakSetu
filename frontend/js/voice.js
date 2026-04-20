@@ -21,8 +21,23 @@ export function setVoiceButtonState(active) {
     }
 }
 
-export function speakResponseText(text, selectedLanguage) {
-    if (!text || !("speechSynthesis" in window)) return;
+let activeRecognition = null;
+
+export function stopBrowserSpeechRecognition() {
+    if (!activeRecognition) return;
+    try {
+        activeRecognition.stop();
+    } catch (_) {
+        /* ignore */
+    }
+}
+
+export function speakResponseText(text, selectedLanguage, options = {}) {
+    const { onStart, onEnd } = options;
+    if (!text || !("speechSynthesis" in window)) {
+        onEnd?.();
+        return;
+    }
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -49,10 +64,21 @@ export function speakResponseText(text, selectedLanguage) {
     );
     if (preferredVoice) utterance.voice = preferredVoice;
 
+    utterance.onstart = () => onStart?.();
+    utterance.onend = () => onEnd?.();
+    utterance.onerror = () => onEnd?.();
+
     window.speechSynthesis.speak(utterance);
 }
 
-export function startBrowserSpeechFallback({ selectedLanguage, onUserText, onStart, onStop }) {
+export function startBrowserSpeechFallback({
+    selectedLanguage,
+    onUserText,
+    onStart,
+    onStop,
+    continuous = false,
+    onInterim,
+} = {}) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
         return false;
@@ -60,19 +86,55 @@ export function startBrowserSpeechFallback({ selectedLanguage, onUserText, onSta
 
     const recognition = new SpeechRecognition();
     recognition.lang = selectedLanguage;
-    recognition.start();
-    onStart();
+    recognition.continuous = Boolean(continuous);
+    recognition.interimResults = Boolean(continuous);
 
     const resetUI = () => {
+        activeRecognition = null;
         onStop();
     };
 
-    recognition.onresult = (event) => {
-        const query = event.results[0][0].transcript;
-        onUserText(query);
-        resetUI();
-    };
-    recognition.onend = resetUI;
-    recognition.onerror = resetUI;
+    if (!continuous) {
+        recognition.onresult = (event) => {
+            const query = event.results[0][0].transcript;
+            onUserText(query);
+            resetUI();
+        };
+        recognition.onend = resetUI;
+        recognition.onerror = resetUI;
+    } else {
+        let finalBuf = "";
+        let lastLive = "";
+        recognition.onresult = (event) => {
+            let interim = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const res = event.results[i];
+                const piece = (res[0] && res[0].transcript) || "";
+                if (res.isFinal) finalBuf += piece;
+                else interim += piece;
+            }
+            lastLive = (finalBuf + interim).trim();
+            if (onInterim) onInterim(lastLive);
+        };
+        recognition.onend = () => {
+            const q = finalBuf.trim() || lastLive.trim();
+            if (q) onUserText(q);
+            resetUI();
+        };
+        recognition.onerror = () => {
+            const q = finalBuf.trim() || lastLive.trim();
+            if (q) onUserText(q);
+            resetUI();
+        };
+    }
+
+    activeRecognition = recognition;
+    try {
+        recognition.start();
+    } catch {
+        activeRecognition = null;
+        return false;
+    }
+    onStart();
     return true;
 }

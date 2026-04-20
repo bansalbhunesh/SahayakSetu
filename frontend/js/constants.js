@@ -8,6 +8,9 @@ export const BACKEND_URL =
 
 export const SESSION_USER_ID_KEY = "sahayak_session_user_id";
 
+/** Web Speech: continuous listen + interim captions (Alexa-style). */
+export const USE_CONTINUOUS_VOICE = true;
+
 export const INDIAN_STATES = [
     "Andhra Pradesh",
     "Arunachal Pradesh",

@@ -730,6 +730,20 @@ select:focus-visible {
     color: var(--color-text-muted);
 }
 
+.voice-live-caption {
+    font-size: 0.85rem;
+    color: var(--color-text);
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-surface) 80%, var(--color-primary-blue));
+    border: 1px solid var(--color-border);
+    max-height: 4.5em;
+    overflow-y: auto;
+    text-align: left;
+    line-height: 1.35;
+}
+
 .text-input-section {
     max-width: 520px;
     margin: 0 auto;
@@ -841,7 +855,8 @@ select:focus-visible {
 }
 
 .explain-panel,
-.near-miss-panel {
+.near-miss-panel,
+.eligibility-hints-panel {
     margin-top: 10px;
     padding: 10px 12px;
     border-radius: var(--radius-sm);
@@ -860,8 +875,14 @@ select:focus-visible {
     border-left: 3px solid var(--color-warn);
 }
 
+.eligibility-hints-panel {
+    background: rgba(93, 173, 226, 0.08);
+    border-left: 3px solid var(--color-primary-blue);
+}
+
 .explain-panel-title,
-.near-miss-panel-title {
+.near-miss-panel-title,
+.eligibility-hints-title {
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -875,6 +896,15 @@ select:focus-visible {
 
 .near-miss-panel-title {
     color: var(--color-warn);
+}
+
+.eligibility-hints-title {
+    color: var(--color-primary-blue);
+}
+
+.eligibility-hint-row {
+    margin-top: 6px;
+    color: var(--color-text);
 }
 
 .explain-panel-body,
