@@ -6,7 +6,7 @@
     <title>SahayakSetu — सहायक सेतु | Multilingual Voice AI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -45,42 +45,44 @@
         <div class="chat-column" id="chatColumn">
             <section class="hero">
                 <div class="hero-content talk-panel" id="talkPanel">
-                    <div class="hero-badge">🇮🇳 Multilingual Voice AI for Indian Welfare</div>
-                    <h1 class="hero-title">Every Voice. <span class="gradient-text">Every Language.</span> One सेतु.</h1>
-                    <p class="hero-subtitle">Ask about government schemes in your mother tongue. Instant, verified answers powered by Gemini 2.0 Flash.</p>
+                    <div class="composer-surface">
+                        <div class="hero-badge">🇮🇳 Multilingual Voice AI for Indian Welfare</div>
+                        <h1 class="hero-title">Every Voice. <span class="gradient-text">Every Language.</span> One सेतु.</h1>
+                        <p class="hero-subtitle">Ask about government schemes in your mother tongue. Instant, verified answers powered by Gemini 2.0 Flash.</p>
 
-                    <div class="language-selector" id="languageSelector">
-                        <button type="button" class="lang-pill active" data-action="select-language" data-lang="hi-IN"><span class="lang-check" aria-hidden="true">✓</span>हिन्दी</button>
-                        <button type="button" class="lang-pill" data-action="select-language" data-lang="kn-IN"><span class="lang-check" aria-hidden="true">✓</span>ಕನ್ನಡ</button>
-                        <button type="button" class="lang-pill" data-action="select-language" data-lang="ta-IN"><span class="lang-check" aria-hidden="true">✓</span>தமிழ்</button>
-                        <button type="button" class="lang-pill" data-action="select-language" data-lang="te-IN"><span class="lang-check" aria-hidden="true">✓</span>తెలుగు</button>
-                        <button type="button" class="lang-pill" data-action="select-language" data-lang="bn-IN"><span class="lang-check" aria-hidden="true">✓</span>বাংলা</button>
-                        <button type="button" class="lang-pill" data-action="select-language" data-lang="en-IN"><span class="lang-check" aria-hidden="true">✓</span>English</button>
-                    </div>
+                        <div class="language-selector" id="languageSelector">
+                            <button type="button" class="lang-pill active" data-action="select-language" data-lang="hi-IN"><span class="lang-check" aria-hidden="true">✓</span>हिन्दी</button>
+                            <button type="button" class="lang-pill" data-action="select-language" data-lang="kn-IN"><span class="lang-check" aria-hidden="true">✓</span>ಕನ್ನಡ</button>
+                            <button type="button" class="lang-pill" data-action="select-language" data-lang="ta-IN"><span class="lang-check" aria-hidden="true">✓</span>தமிழ்</button>
+                            <button type="button" class="lang-pill" data-action="select-language" data-lang="te-IN"><span class="lang-check" aria-hidden="true">✓</span>తెలుగు</button>
+                            <button type="button" class="lang-pill" data-action="select-language" data-lang="bn-IN"><span class="lang-check" aria-hidden="true">✓</span>বাংলা</button>
+                            <button type="button" class="lang-pill" data-action="select-language" data-lang="en-IN"><span class="lang-check" aria-hidden="true">✓</span>English</button>
+                        </div>
 
-                    <div class="voice-section">
-                        <button class="voice-btn" id="voiceBtn" type="button" data-action="toggle-voice" aria-label="Voice call">
-                            <div class="voice-btn-inner">
-                                <div class="voice-waveform hidden" id="voiceWaveform" aria-hidden="true">
-                                    <span class="wave-bar"></span>
-                                    <span class="wave-bar"></span>
-                                    <span class="wave-bar"></span>
-                                    <span class="wave-bar"></span>
-                                    <span class="wave-bar"></span>
+                        <div class="voice-section">
+                            <button class="voice-btn" id="voiceBtn" type="button" data-action="toggle-voice" aria-label="Voice call">
+                                <div class="voice-btn-inner">
+                                    <div class="voice-waveform hidden" id="voiceWaveform" aria-hidden="true">
+                                        <span class="wave-bar"></span>
+                                        <span class="wave-bar"></span>
+                                        <span class="wave-bar"></span>
+                                        <span class="wave-bar"></span>
+                                        <span class="wave-bar"></span>
+                                    </div>
+                                    <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                                    <svg class="stop-icon hidden" id="stopIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                                 </div>
-                                <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-                                <svg class="stop-icon hidden" id="stopIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                            </div>
-                        </button>
-                        <p class="voice-label" id="voiceLabel">Talk</p>
-                        <p class="voice-hint" id="voiceHint">Choose language and tap to speak</p>
-                        <p class="voice-live-caption hidden" id="voiceLiveCaption" aria-live="polite"></p>
-                    </div>
+                            </button>
+                            <p class="voice-label" id="voiceLabel">Talk</p>
+                            <p class="voice-hint" id="voiceHint">Choose language and tap to speak</p>
+                            <p class="voice-live-caption hidden" id="voiceLiveCaption" aria-live="polite"></p>
+                        </div>
 
-                    <div class="text-input-section">
-                        <div class="text-input-wrapper">
-                            <input type="text" id="textInput" class="text-input" placeholder="Type in any language..." autocomplete="off" />
-                            <button class="send-btn" id="sendBtn" type="button" data-action="send-text" aria-label="Send">➤</button>
+                        <div class="text-input-section">
+                            <div class="text-input-wrapper">
+                                <input type="text" id="textInput" class="text-input" placeholder="Type in any language..." autocomplete="off" />
+                                <button class="send-btn" id="sendBtn" type="button" data-action="send-text" aria-label="Send"><span class="send-btn-icon" aria-hidden="true"></span></button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -114,10 +116,17 @@
                     </form>
                 </div>
 
-                <div class="conversation-scroll" id="conversation" aria-live="polite"></div>
+                <div class="conversation-shell">
+                    <div class="conversation-shell-head">
+                        <span class="conversation-shell-title">Conversation</span>
+                        <span class="conversation-shell-hint">Voice or type below</span>
+                    </div>
+                    <div class="conversation-scroll" id="conversation" aria-live="polite"></div>
+                </div>
             </section>
 
             <section class="features" id="features">
+                <h2 class="section-title section-title-inline">Why SahayakSetu</h2>
                 <div class="features-grid">
                     <div class="feature-card">
                         <div class="feature-icon">🧠</div>
@@ -266,6 +275,7 @@
 
         <aside class="sidebar" id="sessionSidebar" aria-label="Active session">
             <div class="sidebar-card">
+                <div class="sidebar-card-accent" aria-hidden="true"></div>
                 <h3 class="sidebar-heading">Evidence Panel</h3>
                 <div class="sidebar-tabs" role="tablist" aria-label="Evidence sections">
                     <button type="button" class="sidebar-tab active" data-action="sidebar-tab" data-tab="trust" role="tab" aria-selected="true">Trust</button>
