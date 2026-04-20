@@ -12,9 +12,9 @@ services:
       - key: CHAT_MODEL
         value: gemini-2.0-flash
       - key: FRONTEND_ORIGIN
-        value: https://sahayaksetu.vercel.app
+        value: https://sahayak-setu.vercel.app
       - key: ALLOWED_ORIGINS
-        value: https://sahayaksetu.vercel.app
+        value: https://sahayak-setu.vercel.app
       - key: ENV
         value: production
       # Fail-closed on moderation classifier errors (see MODERATION_STRICT in config).

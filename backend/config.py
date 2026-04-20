@@ -17,7 +17,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ENV = os.getenv("ENV", "development").strip().lower()
 BACKEND_URL = os.getenv("BACKEND_URL", "https://sahayaksetu-backend-3kxl.onrender.com")
-FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://sahayaksetu.vercel.app")
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://sahayak-setu.vercel.app")
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("ALLOWED_ORIGINS", FRONTEND_ORIGIN).split(",")
