@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from backend.config import (
     HYBRID_KEYWORD_WEIGHT,
@@ -15,6 +18,10 @@ from backend.config import (
     qdrant_client,
 )
 from backend.services.injection_guard import wrap_retrieved_chunk
+
+logger = logging.getLogger(__name__)
+_CATALOG_PATH = Path(__file__).resolve().parents[2] / "scripts" / "data" / "schemes.json"
+_CATALOG_CACHE: list[dict] | None = None
 
 
 @dataclass
@@ -31,24 +38,29 @@ class SearchResult:
 
 
 def search_schemes(query: str, limit: int = 3) -> list[SearchResult]:
-    raw_results = qdrant_client.query(
-        collection_name=QDRANT_COLLECTION,
-        query_text=query,
-        limit=limit,
-    )
-    return [
-        SearchResult(
-            scheme_name=result.metadata.get("scheme", "Scheme"),
-            document=result.document,
-            score=result.score,
-            apply_link=result.metadata.get("apply_link"),
-            source=result.metadata.get("source"),
-            vector_score=float(result.score),
-            keyword_score=0.0,
-            blended_score=float(result.score),
+    try:
+        raw_results = qdrant_client.query(
+            collection_name=QDRANT_COLLECTION,
+            query_text=query,
+            limit=limit,
         )
-        for result in raw_results
-    ]
+        if raw_results:
+            return [
+                SearchResult(
+                    scheme_name=result.metadata.get("scheme", "Scheme"),
+                    document=result.document,
+                    score=result.score,
+                    apply_link=result.metadata.get("apply_link"),
+                    source=result.metadata.get("source"),
+                    vector_score=float(result.score),
+                    keyword_score=0.0,
+                    blended_score=float(result.score),
+                )
+                for result in raw_results
+            ]
+    except Exception:
+        logger.warning("qdrant_query_failed_falling_back_to_catalog", exc_info=True)
+    return _catalog_keyword_search(query, limit)
 
 
 def filter_by_threshold(results: list[SearchResult], threshold: float) -> list[SearchResult]:
@@ -74,6 +86,48 @@ def _keyword_overlap_score(query: str, document: str) -> float:
     if q_text and q_text in d_text:
         score += 0.2
     return max(0.0, min(1.0, score))
+
+
+def _load_catalog() -> list[dict]:
+    global _CATALOG_CACHE
+    if _CATALOG_CACHE is not None:
+        return _CATALOG_CACHE
+    try:
+        rows = json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+        if isinstance(rows, list):
+            _CATALOG_CACHE = [r for r in rows if isinstance(r, dict)]
+        else:
+            _CATALOG_CACHE = []
+    except Exception:
+        logger.warning("local_catalog_load_failed", exc_info=True)
+        _CATALOG_CACHE = []
+    return _CATALOG_CACHE
+
+
+def _catalog_keyword_search(query: str, limit: int) -> list[SearchResult]:
+    rows = _load_catalog()
+    if not rows:
+        return []
+    scored: list[SearchResult] = []
+    for row in rows:
+        text = str(row.get("text") or "")
+        meta = row.get("metadata") or {}
+        scheme = str(meta.get("scheme") or "Scheme")
+        score = _keyword_overlap_score(query, f"{scheme} {text}")
+        scored.append(
+            SearchResult(
+                scheme_name=scheme,
+                document=text,
+                score=score,
+                apply_link=meta.get("apply_link"),
+                source=meta.get("source"),
+                vector_score=0.0,
+                keyword_score=score,
+                blended_score=score,
+            )
+        )
+    scored.sort(key=lambda x: x.score, reverse=True)
+    return _dedupe_by_scheme(scored)[:limit]
 
 
 def _normalize(scores: list[float]) -> list[float]:

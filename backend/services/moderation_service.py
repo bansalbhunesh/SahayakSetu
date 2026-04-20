@@ -39,13 +39,26 @@ def _strip_json_fences(text: str) -> str:
     return text.strip()
 
 
+def _parse_json_best_effort(raw: str) -> dict:
+    cleaned = _strip_json_fences(raw)
+    try:
+        parsed = json.loads(cleaned)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        # Some model responses include a short preface/postfix around JSON.
+        match = re.search(r"\{[\s\S]*\}", cleaned)
+        if not match:
+            raise
+        parsed = json.loads(match.group(0))
+        return parsed if isinstance(parsed, dict) else {}
+
+
 def _classify_intent(classifier_input: str, *, conversation: bool) -> ModerationResult:
     prompt = _build_moderation_prompt(classifier_input, conversation=conversation)
     raw = ""
     try:
         raw = llm_service.run_moderation_raw_prompt(prompt)
-        cleaned = _strip_json_fences(raw)
-        data = json.loads(cleaned)
+        data = _parse_json_best_effort(raw)
         allowed = bool(data.get("allowed", True))
         category = str(data.get("category", "welfare_scheme"))
         redirect = data.get("redirect_message")

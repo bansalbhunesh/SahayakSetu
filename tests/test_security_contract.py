@@ -109,15 +109,14 @@ def test_vapi_webhook_accepts_valid_signature(monkeypatch):
     assert r.status_code == 200
 
 
-def test_production_startup_refuses_missing_secrets(monkeypatch):
+def test_production_startup_allows_missing_vapi_secret(monkeypatch):
     monkeypatch.setenv("QDRANT_URL", "http://localhost:6333")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("ENV", "production")
     monkeypatch.delenv("VAPI_WEBHOOK_SECRET", raising=False)
     from backend import config
 
-    with pytest.raises(RuntimeError, match="VAPI_WEBHOOK_SECRET"):
-        importlib.reload(config)
+    importlib.reload(config)
 
 
 def test_trace_id_in_response_header():

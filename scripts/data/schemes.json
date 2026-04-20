@@ -302,5 +302,101 @@
       "apply_link": "https://aajeevika.gov.in/",
       "source": "https://www.myscheme.gov.in/schemes/deendayal-antyodaya-yojana-national-rural-livelihoods-mission-day-nrlm"
     }
+  },
+  {
+    "text": "National Social Assistance Programme (NSAP): Social pensions for eligible elderly, widows, and persons with disabilities.",
+    "metadata": {
+      "scheme": "NSAP",
+      "apply_link": "https://nsap.nic.in/",
+      "source": "https://www.myscheme.gov.in/schemes/nsap"
+    }
+  },
+  {
+    "text": "Pradhan Mantri Fasal Bima Yojana (PMFBY): Crop insurance support against natural calamities and yield loss.",
+    "metadata": {
+      "scheme": "PMFBY",
+      "apply_link": "https://pmfby.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmfby"
+    }
+  },
+  {
+    "text": "Soil Health Card Scheme: Periodic soil testing and nutrient recommendations for better farm productivity.",
+    "metadata": {
+      "scheme": "Soil Health Card",
+      "apply_link": "https://soilhealth.dac.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/soil-health-card-scheme"
+    }
+  },
+  {
+    "text": "e-Shram Portal: Registration for unorganized workers to access social security benefits.",
+    "metadata": {
+      "scheme": "e-Shram",
+      "apply_link": "https://eshram.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/e-shram"
+    }
+  },
+  {
+    "text": "National Apprenticeship Promotion Scheme (NAPS): Apprenticeship opportunities with stipend support for youth.",
+    "metadata": {
+      "scheme": "NAPS",
+      "apply_link": "https://www.apprenticeshipindia.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/naps"
+    }
+  },
+  {
+    "text": "PM eVIDYA: Digital and TV-based learning support for school students across India.",
+    "metadata": {
+      "scheme": "PM eVIDYA",
+      "apply_link": "https://pmevidya.education.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-evidya"
+    }
+  },
+  {
+    "text": "National Scholarship Portal (NSP): Centralized online scholarships for school and college students.",
+    "metadata": {
+      "scheme": "NSP Scholarships",
+      "apply_link": "https://scholarships.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/nsp"
+    }
+  },
+  {
+    "text": "PM Ujjwala 2.0: Additional LPG connection support for eligible poor households with simplified KYC.",
+    "metadata": {
+      "scheme": "Ujjwala 2.0",
+      "apply_link": "https://www.pmuy.gov.in/ujjwala2.html",
+      "source": "https://www.myscheme.gov.in/schemes/pm-ujjwala-yojana"
+    }
+  },
+  {
+    "text": "PM Jan Arogya Yojana Ayushman Card: Ayushman card generation and hospital search services.",
+    "metadata": {
+      "scheme": "Ayushman Card",
+      "apply_link": "https://beneficiary.nha.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmjay"
+    }
+  },
+  {
+    "text": "National Livestock Mission: Financial support for entrepreneurship and breed improvement in livestock sector.",
+    "metadata": {
+      "scheme": "National Livestock Mission",
+      "apply_link": "https://nlm.udyamimitra.in/",
+      "source": "https://www.myscheme.gov.in/schemes/national-livestock-mission"
+    }
+  },
+  {
+    "text": "PM Formalisation of Micro Food Processing Enterprises (PMFME): Credit-linked support for food micro-enterprises.",
+    "metadata": {
+      "scheme": "PMFME",
+      "apply_link": "https://pmfme.mofpi.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmfme"
+    }
+  },
+  {
+    "text": "Atal Mission for Rejuvenation and Urban Transformation (AMRUT): Urban water supply and sewerage infrastructure improvements.",
+    "metadata": {
+      "scheme": "AMRUT",
+      "apply_link": "https://amrut.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/amrut"
+    }
   }
 ]

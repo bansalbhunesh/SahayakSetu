@@ -3,6 +3,8 @@ import os
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
+__test__ = False
+
 load_dotenv()
 
 QDRANT_URL = os.getenv("QDRANT_URL")
