@@ -21,7 +21,7 @@
 ## Moderation Pipeline
 - **Web `/api/search`:** `ModerationService.check(query)` → if blocked, return `redirect_message` → else RAG + LLM.
 - **Voice tool `search_schemes`:** same `check()` on the tool query (language from optional arg + script inference).
-- **Custom LLM `/chat/completions`:** verify optional secret → `check_conversation_transcript()` on recent User/Assistant turns (system skipped; long threads truncated) → then generate. Stops jailbreak text hidden in earlier turns without re-moderating on every intermediate hop.
+- **Voice model path:** Vapi assistant now uses managed OpenAI model + `search_schemes` tool over `/vapi-webhook`; no backend `/chat/completions` proxy.
 - **Classifier errors:** default **fail-open** (`MODERATION_STRICT=false`, good for dev). Set **`MODERATION_STRICT=true`** in production so JSON/LLM moderation failures **fail-closed** with a generic safe message. Logs: `moderation_parse_error`, `moderation_call_error`, `moderation_fallback` (action fail_open / fail_closed).
 
 ## Knowledge Base
@@ -39,5 +39,5 @@
 
 ### Production checklist (backend env)
 1. **`MODERATION_STRICT=true`** — fail-closed when the moderation classifier returns bad JSON or errors. The repo **`render.yaml`** sets this to **`true`** for the `sahayaksetu-backend` web service; you can override in the Render dashboard (e.g. a staging service set to `false`).
-2. **`CHAT_COMPLETIONS_SECRET`** — non-empty; mirror the same value in the Vapi **custom LLM** credential (Bearer or `X-SahayakSetu-Key`) so `/chat/completions` is not an open proxy. Declared in **`render.yaml`** with `sync: false` so you set the value only in the Render dashboard.
+2. **`VAPI_WEBHOOK_SECRET`** — non-empty; incoming webhook signatures are validated before any tool execution.
 3. Confirm startup logs show **Policy** lines you expect (printed once on boot).

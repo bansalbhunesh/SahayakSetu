@@ -113,7 +113,6 @@ def test_production_startup_refuses_missing_secrets(monkeypatch):
     monkeypatch.setenv("QDRANT_URL", "http://localhost:6333")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("ENV", "production")
-    monkeypatch.setenv("CHAT_COMPLETIONS_SECRET", "x")
     monkeypatch.delenv("VAPI_WEBHOOK_SECRET", raising=False)
     from backend import config
 

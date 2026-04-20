@@ -42,8 +42,5 @@ services:
         key: REDIS_URL
       - sync: false
         key: SESSION_SECRET
-      # Same value as Vapi custom-LLM credential (Bearer or X-SahayakSetu-Key).
-      - sync: false
-        key: CHAT_COMPLETIONS_SECRET
       - sync: false
         key: VAPI_WEBHOOK_SECRET

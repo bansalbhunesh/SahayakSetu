@@ -24,8 +24,6 @@ ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
-# If set, /chat/completions requires Authorization: Bearer <secret> or X-SahayakSetu-Key: <secret>
-CHAT_COMPLETIONS_SECRET = os.getenv("CHAT_COMPLETIONS_SECRET", "").strip()
 VAPI_WEBHOOK_SECRET = os.getenv("VAPI_WEBHOOK_SECRET", "").strip()
 
 
@@ -68,8 +66,6 @@ if not QDRANT_URL or not GEMINI_API_KEY:
         f"GEMINI_API_KEY={'set' if GEMINI_API_KEY else 'MISSING'}"
     )
 
-if ENV == "production" and not CHAT_COMPLETIONS_SECRET:
-    raise RuntimeError("CHAT_COMPLETIONS_SECRET is required in production.")
 if ENV == "production" and not VAPI_WEBHOOK_SECRET:
     raise RuntimeError("VAPI_WEBHOOK_SECRET is required in production.")
 

@@ -1,6 +1,5 @@
 import hmac
 import json
-import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -8,8 +7,6 @@ from fastapi.responses import JSONResponse
 from slowapi.util import get_remote_address
 
 from backend.config import (
-    BACKEND_URL,
-    CHAT_COMPLETIONS_SECRET,
     ENV,
     SIMILARITY_THRESHOLD,
     VAPI_WEBHOOK_SECRET,
@@ -17,24 +14,8 @@ from backend.config import (
 from backend.rate_limit import limiter
 from backend.services import injection_guard, moderation_service, pii_scrubber, retrieval_service
 from backend.services.language_hint import infer_bcp47
-from backend.services.llm_service import generate
 
 router = APIRouter(tags=["voice"])
-
-
-def _verify_chat_completions_secret(request: Request) -> None:
-    if not CHAT_COMPLETIONS_SECRET:
-        return
-    auth = (request.headers.get("authorization") or "").strip()
-    token = ""
-    if auth.lower().startswith("bearer "):
-        token = auth[7:].strip()
-    if not token:
-        token = (request.headers.get("x-sahayaksetu-key") or "").strip()
-    if len(token) != len(CHAT_COMPLETIONS_SECRET) or not hmac.compare_digest(
-        token.encode("utf-8"), CHAT_COMPLETIONS_SECRET.encode("utf-8")
-    ):
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 def _verify_vapi_signature(request: Request, raw_body: bytes) -> None:
@@ -46,86 +27,6 @@ def _verify_vapi_signature(request: Request, raw_body: bytes) -> None:
     expected = hmac.new(VAPI_WEBHOOK_SECRET.encode("utf-8"), raw_body, "sha256").hexdigest()
     if len(sig) != len(expected) or not hmac.compare_digest(sig, expected):
         raise HTTPException(status_code=401, detail="Invalid signature")
-
-
-def _message_plaintext(content: Any) -> str:
-    if isinstance(content, str):
-        return content.strip()
-    if isinstance(content, list):
-        chunks: list[str] = []
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                chunks.append(str(block.get("text", "")))
-            elif isinstance(block, str):
-                chunks.append(block)
-        return " ".join(chunks).strip()
-    return ""
-
-
-def _last_user_plain_text(messages: list[Any]) -> str | None:
-    for m in reversed(messages):
-        if not isinstance(m, dict) or m.get("role") != "user":
-            continue
-        body = _message_plaintext(m.get("content"))
-        if body:
-            return body
-    return None
-
-
-def _conversation_transcript_for_moderation(messages: list[Any], max_chars: int = 12000) -> str | None:
-    """Chronological User/Assistant lines (system skipped) for one moderation pass before LLM."""
-    lines: list[str] = []
-    for m in messages:
-        if not isinstance(m, dict):
-            continue
-        role = m.get("role")
-        if role not in ("user", "assistant"):
-            continue
-        body = _message_plaintext(m.get("content"))
-        if not body:
-            continue
-        label = "User" if role == "user" else "Assistant"
-        lines.append(f"{label}: {body}")
-    if not lines:
-        return None
-    out = "\n".join(lines)
-    if len(out) > max_chars:
-        out = "...[truncated older turns]\n" + out[-max_chars:]
-    return out
-
-
-def _sanitize_chat_messages(messages: list[Any]) -> tuple[list[Any], bool]:
-    """Sanitize text parts for chat/completions and flag suspicious injection prompts."""
-    sanitized: list[Any] = []
-    suspicious = False
-    for m in messages:
-        if not isinstance(m, dict):
-            continue
-        role = m.get("role")
-        content = m.get("content")
-        if role not in ("user", "assistant"):
-            sanitized.append(m)
-            continue
-        if isinstance(content, str):
-            safe, flag = injection_guard.sanitize_query(content)
-            safe, _ = pii_scrubber.scrub(safe)
-            suspicious = suspicious or flag
-            sanitized.append({**m, "content": safe})
-            continue
-        if isinstance(content, list):
-            blocks = []
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    safe, flag = injection_guard.sanitize_query(str(block.get("text", "")))
-                    safe, _ = pii_scrubber.scrub(safe)
-                    suspicious = suspicious or flag
-                    blocks.append({**block, "text": safe})
-                else:
-                    blocks.append(block)
-            sanitized.append({**m, "content": blocks})
-            continue
-        sanitized.append(m)
-    return sanitized, suspicious
 
 
 @router.post("/vapi-webhook")
@@ -146,8 +47,8 @@ async def handle_vapi_webhook(request: Request):
             content={
                 "assistant": {
                     "model": {
-                        "provider": "custom-llm",
-                        "url": f"{BACKEND_URL}/chat/completions",
+                        "provider": "openai",
+                        "model": "gpt-4o-mini",
                     },
                     "voice": {"provider": "azure", "voiceId": "hi-IN-SwaraNeural"},
                     "firstMessage": (
@@ -202,66 +103,3 @@ async def handle_vapi_webhook(request: Request):
         return JSONResponse(content={"results": results})
 
     return JSONResponse(content={})
-
-
-@router.post("/chat/completions")
-@limiter.limit("20/minute")
-async def handle_chat_completions(request: Request):
-    _verify_chat_completions_secret(request)
-    webhook_body: dict[str, Any] = await request.json()
-    messages = webhook_body.get("messages", [])
-    messages, suspicious = _sanitize_chat_messages(messages)
-    if suspicious:
-        return {
-            "id": f"chatcmpl-{int(time.time())}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": "security",
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": "Please ask a normal welfare-scheme question and avoid instruction-style prompts.",
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
-        }
-    transcript = _conversation_transcript_for_moderation(messages)
-    last_user = _last_user_plain_text(messages)
-    mod_lang = infer_bcp47(last_user or transcript or "")
-    if transcript:
-        moderation = await moderation_service.check_conversation_transcript(transcript, mod_lang)
-        if not moderation.allowed:
-            block_text = (
-                moderation.redirect_message
-                or "Please ask about Indian government schemes or civic services."
-            )
-            return {
-                "id": f"chatcmpl-{int(time.time())}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": "moderation",
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": block_text},
-                        "finish_reason": "stop",
-                    }
-                ],
-            }
-    text, provider = await generate(messages)
-    return {
-        "id": f"chatcmpl-{int(time.time())}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": provider,
-        "choices": [
-            {
-                "index": 0,
-                "message": {"role": "assistant", "content": text},
-                "finish_reason": "stop",
-            }
-        ],
-    }

@@ -11,7 +11,6 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.config import (
     ALLOWED_ORIGINS,
-    CHAT_COMPLETIONS_SECRET,
     CHAT_MODEL,
     ENV,
     FRONTEND_ORIGIN,
@@ -37,7 +36,7 @@ def create_app() -> FastAPI:
         allow_origins=ALLOWED_ORIGINS or [FRONTEND_ORIGIN],
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-User-Id", "X-SahayakSetu-Key"],
+        allow_headers=["Content-Type", "Authorization", "X-User-Id"],
     )
 
     @app.middleware("http")
@@ -69,10 +68,6 @@ def create_app() -> FastAPI:
             print("   MODERATION_STRICT: on (classifier errors → block)")
         else:
             print("   MODERATION_STRICT: off (classifier errors → allow; use on in production)")
-        if CHAT_COMPLETIONS_SECRET:
-            print("   /chat/completions: auth enabled (Bearer or X-SahayakSetu-Key)")
-        else:
-            print("   /chat/completions: auth disabled — set CHAT_COMPLETIONS_SECRET in production")
         print(f"   ENV: {ENV}")
 
     return app

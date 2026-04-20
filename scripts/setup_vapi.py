@@ -10,7 +10,6 @@ Requires: VAPI_API_KEY, BACKEND_URL in environment.
 
 import os
 import sys
-import json
 import requests
 
 from dotenv import load_dotenv
@@ -43,8 +42,8 @@ def create_assistant():
     config = {
         "name": "SahayakSetu",
         "model": {
-            "provider": "custom-llm",
-            "url": f"{BACKEND_URL}/chat/completions",
+            "provider": "openai",
+            "model": "gpt-4o-mini",
             "messages": [
                 {
                     "role": "system",
