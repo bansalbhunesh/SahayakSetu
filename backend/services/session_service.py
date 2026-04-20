@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import logging
 import os
+import re
 import uuid
 from functools import wraps
 from types import SimpleNamespace
@@ -24,7 +25,20 @@ except ModuleNotFoundError:  # pragma: no cover - local/dev test fallback
 from backend.config import HISTORY_WINDOW
 
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(60 * 60 * 24)))
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+def _safe_redis_url() -> str:
+    raw = (os.getenv("REDIS_URL") or "").strip()
+    if not raw:
+        return "redis://localhost:6379/0"
+    if raw.startswith(("redis://", "rediss://")):
+        return raw
+    # Handle accidental pastes like: redis-cli --tls -u redis://...
+    match = re.search(r"(rediss?://\S+)", raw)
+    if match:
+        return match.group(1)
+    return "redis://localhost:6379/0"
+
+
+REDIS_URL = _safe_redis_url()
 DAILY_LLM_CAP = int(os.getenv("DAILY_LLM_CAP", "5000"))
 SESSION_SECRET = os.getenv("SESSION_SECRET", "").encode("utf-8")
 
