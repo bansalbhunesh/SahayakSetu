@@ -29,6 +29,12 @@ _HINGLISH_TOKEN_MAP: Final[tuple[tuple[str, str], ...]] = (
     (" yogy ", " योग्य "),
     (" dastavez ", " दस्तावेज़ "),
     (" dastavej ", " दस्तावेज़ "),
+    (" mgnrega ", " मनरेगा "),
+    (" mnrega ", " मनरेगा "),
+    (" nrega ", " मनरेगा "),
+    (" pm kisan ", " पीएम किसान "),
+    (" pm-kisan ", " पीएम किसान "),
+    (" pmkisan ", " पीएम किसान "),
 )
 
 
@@ -67,6 +73,34 @@ def detect_language_code(text: str) -> str:
     except Exception as e:
         logger.debug("langdetect_skipped", extra={"error": str(e)[:80]})
     return "en"
+
+
+_LATIN_NAMED_SCHEMES = re.compile(
+    r"\b(?:mgnrega|mnrega|nrega|pm[-\s]?kisan|pmkisan|pm[-\s]?kisan\s+samman)\b",
+    re.I,
+)
+_DEVANAGARI_NAMED_SCHEMES = re.compile(
+    r"(?:मनरेगा|पीएम\s*किसान|किसान\s*सम्मान|किसान\s*निधि|प्रधानमंत्री\s*किसान)",
+)
+
+
+def prefer_original_for_retrieval(original: str, normalized: str) -> bool:
+    """
+    When true, skip Gemini query-rewrite for retrieval and embed the user's own wording.
+
+    Short Hindi / Devanagari queries were being rewritten into generic English, which
+    skewed vector search away from schemes like MGNREGA / PM-KISAN (English catalog).
+    """
+    o = (original or "").strip()
+    n = (normalized or "").strip()
+    blob = f"{o}\n{n}"
+    if _devanagari_ratio(o) >= 0.12:
+        return True
+    if _LATIN_NAMED_SCHEMES.search(blob):
+        return True
+    if _DEVANAGARI_NAMED_SCHEMES.search(blob):
+        return True
+    return False
 
 
 def register_hint(detected_iso: str, ui_bcp47: str) -> str:

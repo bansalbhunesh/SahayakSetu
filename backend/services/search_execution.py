@@ -129,9 +129,13 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
 
         qtype = _query_type(original_query)
         rewritten_base = (normalized_surface or original_query).strip() or original_query
+        prefer_original_retrieval = language_service.prefer_original_for_retrieval(
+            original_query, normalized_surface
+        )
         rewritten_query = rewritten_base
-        if len(rewritten_base.split()) <= 5:
+        if len(rewritten_base.split()) <= 5 and not prefer_original_retrieval:
             rewritten_query = await llm_service.rewrite_query(rewritten_base, search_request.language)
+        retrieval_query = rewritten_base if prefer_original_retrieval else rewritten_query
         query_debug = {
             "original": original_query,
             "hinglish_normalized": normalized_surface
@@ -139,6 +143,8 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
             else None,
             "detected_language": detected_lang,
             "rewritten": rewritten_query,
+            "retrieval_query": retrieval_query,
+            "skipped_llm_query_rewrite": prefer_original_retrieval,
             "type": qtype,
             "pii_redactions": pii_hits,
         }
@@ -151,9 +157,10 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
         try:
             relevant_results, near_miss_results, context, near_miss_context = (
                 retrieval_service.retrieve_for_rag(
-                    rewritten_query,
+                    retrieval_query,
                     SIMILARITY_THRESHOLD,
                     use_hybrid=HYBRID_RETRIEVAL,
+                    boost_query=original_query,
                 )
             )
             log_pipeline_step(
@@ -168,7 +175,7 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
             context, near_miss_context = "", ""
 
         retrieval_debug = (
-            retrieval_service.build_retrieval_debug(rewritten_query, relevant_results)
+            retrieval_service.build_retrieval_debug(retrieval_query, relevant_results)
             if DEBUG_RETRIEVAL
             else None
         )

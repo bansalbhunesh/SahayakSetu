@@ -151,6 +151,66 @@ def _hybrid_weight_for_query(query: str, base_weight: float) -> float:
     return max(0.0, min(1.0, (max(0.0, min(1.0, base_weight)) + query_weight) / 2.0))
 
 
+def _scheme_match_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+
+
+_CATALOG_BOOST_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"(?:\b(?:mgnrega|mnrega|nrega)\b|मनरेगा)", re.I), "mgnrega"),
+    (
+        re.compile(
+            r"\bpm[-\s]?kisan\b|pmkisan|pm[-\s]?kisan\s+samman|"
+            r"पीएम\s*किसान|किसान\s*सम्मान|किसान\s*निधि|प्रधानमंत्री\s*किसान",
+            re.I,
+        ),
+        "pmkisan",
+    ),
+)
+
+
+def _catalog_search_result_for_slug(slug: str) -> SearchResult | None:
+    """Return a catalog row as SearchResult; slug is normalized like 'mgnrega' or 'pmkisan'."""
+    for row in _load_catalog():
+        meta = row.get("metadata") or {}
+        scheme = str(meta.get("scheme") or "")
+        if _scheme_match_key(scheme) != slug:
+            continue
+        text = str(row.get("text") or "")
+        return SearchResult(
+            scheme_name=scheme,
+            document=text,
+            score=0.78,
+            apply_link=meta.get("apply_link"),
+            source=meta.get("source"),
+            vector_score=0.78,
+            keyword_score=0.78,
+            blended_score=0.78,
+        )
+    return None
+
+
+def merge_explicit_catalog_hits(query: str, raw_results: list[SearchResult]) -> list[SearchResult]:
+    """
+    If the user names a flagship scheme but vector search missed it, splice the local
+    catalogue row in with a strong score so RAG + grounding can cite real text.
+    """
+    merged = list(raw_results or [])
+    if not (query or "").strip():
+        return merged
+    keys = {_scheme_match_key(r.scheme_name) for r in merged}
+    for pattern, slug in _CATALOG_BOOST_RULES:
+        if not pattern.search(query):
+            continue
+        if slug in keys:
+            continue
+        hit = _catalog_search_result_for_slug(slug)
+        if hit:
+            merged.append(hit)
+            keys.add(slug)
+    merged.sort(key=lambda r: float(r.score or 0.0), reverse=True)
+    return merged
+
+
 def _dedupe_by_scheme(results: list[SearchResult]) -> list[SearchResult]:
     seen: set[str] = set()
     deduped: list[SearchResult] = []
@@ -219,6 +279,7 @@ def retrieve_for_rag(
     similarity_threshold: float,
     *,
     use_hybrid: bool = False,
+    boost_query: str | None = None,
 ) -> tuple[list[SearchResult], list[SearchResult], str, str]:
     """
     Top confident matches (up to 3) plus up to two additional high-ranked hits
@@ -226,6 +287,8 @@ def retrieve_for_rag(
     """
     candidate_limit = RAG_VECTOR_CANDIDATE_LIMIT if use_hybrid else RAG_VECTOR_QUERY_LIMIT
     raw_results = search_schemes(query, limit=candidate_limit)
+    boost_blob = f"{query}\n{boost_query or ''}"
+    raw_results = merge_explicit_catalog_hits(boost_blob, raw_results)
     if use_hybrid:
         raw_results = _hybrid_rerank(query, raw_results)
     else:
