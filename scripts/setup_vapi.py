@@ -10,7 +10,6 @@ Requires: VAPI_API_KEY, BACKEND_URL in environment.
 
 import os
 import sys
-import json
 import requests
 
 from dotenv import load_dotenv
@@ -44,7 +43,7 @@ def create_assistant():
         "name": "SahayakSetu",
         "model": {
             "provider": "openai",
-            "model": os.environ.get("CHAT_MODEL", "gpt-4o-mini"),
+            "model": "gpt-4o-mini",
             "messages": [
                 {
                     "role": "system",
@@ -80,7 +79,14 @@ def create_assistant():
                                 "query": {
                                     "type": "string",
                                     "description": "The user's question about government schemes",
-                                }
+                                },
+                                "language": {
+                                    "type": "string",
+                                    "description": (
+                                        "Optional BCP-47 tag for the user's language "
+                                        "(e.g. hi-IN, en-IN, kn-IN, ta-IN). Omit if unsure; the server infers from text."
+                                    ),
+                                },
                             },
                             "required": ["query"],
                         },

@@ -1,0 +1,402 @@
+[
+  {
+    "text": "PM Kisan Samman Nidhi: Farmers get Rs 6000 per year in 3 installments of Rs 2000 each via DBT.",
+    "metadata": {
+      "scheme": "PM-KISAN",
+      "apply_link": "https://pmkisan.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-kisan"
+    }
+  },
+  {
+    "text": "Ayushman Bharat (PM-JAY): Provides health cover of Rs 5 Lakh per family per year for hospitalization.",
+    "metadata": {
+      "scheme": "Ayushman Bharat",
+      "apply_link": "https://pmjay.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmjay"
+    }
+  },
+  {
+    "text": "PM Awas Yojana (PMAY): Providing 'Housing for All' to urban and rural poor with financial assistance.",
+    "metadata": {
+      "scheme": "PMAY",
+      "apply_link": "https://pmaymis.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmay-u"
+    }
+  },
+  {
+    "text": "PM Matru Vandana Yojana (PMMVY): Financial benefit of Rs. 5,000/- provided to pregnant mothers.",
+    "metadata": {
+      "scheme": "PMMVY",
+      "apply_link": "https://pmmvy.wcd.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmmvy"
+    }
+  },
+  {
+    "text": "Atal Pension Yojana (APY): Monthly pension between Rs 1000-5000 for unorganized sector workers.",
+    "metadata": {
+      "scheme": "APY",
+      "apply_link": "https://www.npscra.nsdl.co.in/scheme-details.php",
+      "source": "https://www.myscheme.gov.in/schemes/atal-pension-yojana-apy"
+    }
+  },
+  {
+    "text": "Sukanya Samriddhi Yojana (SSY): High-interest savings scheme for the girl child with tax benefits.",
+    "metadata": {
+      "scheme": "SSY",
+      "apply_link": "https://www.indiapost.gov.in/Financial/Pages/Content/SSY.aspx",
+      "source": "https://www.myscheme.gov.in/schemes/sukanya-samriddhi-yojana"
+    }
+  },
+  {
+    "text": "PM Mudra Yojana: Loans up to 10 lakh for small enterprises without security.",
+    "metadata": {
+      "scheme": "Mudra",
+      "apply_link": "https://www.mudra.org.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-mudra-yojana"
+    }
+  },
+  {
+    "text": "Ujjwala Yojana: Free LPG connection and stove for women from BPL households.",
+    "metadata": {
+      "scheme": "Ujjwala",
+      "apply_link": "https://www.pmuy.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-ujjwala-yojana"
+    }
+  },
+  {
+    "text": "MGNREGA: Guaranteed 100 days of wage employment in a financial year to rural households.",
+    "metadata": {
+      "scheme": "MGNREGA",
+      "apply_link": "https://nrega.nic.in/",
+      "source": "https://www.myscheme.gov.in/schemes/mgnrega"
+    }
+  },
+  {
+    "text": "PM Vishwakarma: Support for traditional artisans with toolkits (15k) and low-interest loans (3L).",
+    "metadata": {
+      "scheme": "Vishwakarma",
+      "apply_link": "https://pmvishwakarma.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-vishwakarma"
+    }
+  },
+  {
+    "text": "Jan Dhan Yojana: Basic savings account with zero balance, insurance, and overdraft facility.",
+    "metadata": {
+      "scheme": "Jan Dhan",
+      "apply_link": "https://www.pmjdy.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pradhan-mantri-jan-dhan-yojana-pmjdy"
+    }
+  },
+  {
+    "text": "PM SVANidhi: Micro-credit facility for street vendors to access collateral-free loans up to Rs 50,000.",
+    "metadata": {
+      "scheme": "SVANidhi",
+      "apply_link": "https://pmsvanidhi.mohua.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-svanidhi"
+    }
+  },
+  {
+    "text": "Stand-Up India: Bank loans (10L-1Cr) for at least one SC/ST and one woman borrower per branch.",
+    "metadata": {
+      "scheme": "Stand-Up India",
+      "apply_link": "https://www.standupmitra.in/",
+      "source": "https://www.myscheme.gov.in/schemes/stand-up-india"
+    }
+  },
+  {
+    "text": "PM Suraksha Bima Yojana (PMSBY): Accidental death/disability cover of 2L for Rs 20/year.",
+    "metadata": {
+      "scheme": "PMSBY",
+      "apply_link": "https://www.jansuraksha.gov.in/Banking/PMSBY.aspx",
+      "source": "https://www.myscheme.gov.in/schemes/pm-suraksha-bima-yojana"
+    }
+  },
+  {
+    "text": "PM Jeevan Jyoti Bima Yojana (PMJJBY): Life insurance cover of 2L for Rs 436/year.",
+    "metadata": {
+      "scheme": "PMJJBY",
+      "apply_link": "https://www.jansuraksha.gov.in/Banking/PMJJBY.aspx",
+      "source": "https://www.myscheme.gov.in/schemes/pm-jeevan-jyoti-bima-yojana"
+    }
+  },
+  {
+    "text": "PM Shram Yogi Maan-dhan: Contributory pension scheme for unorganized workers with Rs 3000 monthly pension.",
+    "metadata": {
+      "scheme": "PM-SYM",
+      "apply_link": "https://maandhan.in/shramyogi",
+      "source": "https://www.myscheme.gov.in/schemes/pm-shram-yogi-maan-dhan-yojana"
+    }
+  },
+  {
+    "text": "PM Vaya Vandana Yojana: Pension scheme for seniors (60+) with 7.4% assured returns.",
+    "metadata": {
+      "scheme": "Vaya Vandana",
+      "apply_link": "https://licindia.in/Bottom-Links/Pradhan-Mantri-Vaya-Vandana-Yojana",
+      "source": "https://www.myscheme.gov.in/schemes/pm-vaya-vandana-yojana"
+    }
+  },
+  {
+    "text": "One Nation One Ration Card: Allows beneficiaries to lift foodgrains from any FPS in India via Aadhaar.",
+    "metadata": {
+      "scheme": "ONORC",
+      "apply_link": "https://nfsa.gov.in/portal/onorc_en",
+      "source": "https://www.myscheme.gov.in/schemes/one-nation-one-ration-card"
+    }
+  },
+  {
+    "text": "Digital India (CSC): Common Service Centers provide G2C services like Aadhaar and PAN.",
+    "metadata": {
+      "scheme": "Digital India",
+      "apply_link": "https://register.csc.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/common-service-centres-csc-2-0"
+    }
+  },
+  {
+    "text": "Skill India (PMKVY): Short-term training/certification for youth with financial rewards.",
+    "metadata": {
+      "scheme": "PMKVY",
+      "apply_link": "https://www.pmkvyofficial.org/",
+      "source": "https://www.myscheme.gov.in/schemes/pmkvy-4-0"
+    }
+  },
+  {
+    "text": "PM Poshan (Mid-Day Meal): Ensures nutritional food for all school-going children in gov schools.",
+    "metadata": {
+      "scheme": "PM Poshan",
+      "apply_link": "https://pmposhan.education.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-poshan-abhiyaan"
+    }
+  },
+  {
+    "text": "Jal Jeevan Mission: Target to provide Har Ghar Jal (piped water) to every rural household.",
+    "metadata": {
+      "scheme": "Jal Jeevan",
+      "apply_link": "https://jaljeevanmission.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/jal-jeevan-mission"
+    }
+  },
+  {
+    "text": "Mission Indradhanush: Immunization coverage for pregnant women and children against diseases.",
+    "metadata": {
+      "scheme": "Indradhanush",
+      "apply_link": "https://www.mohfw.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/mission-indradhanush"
+    }
+  },
+  {
+    "text": "PM-GKAY: Free 5kg food grains per person per month to NFSA beneficiaries.",
+    "metadata": {
+      "scheme": "PM-GKAY",
+      "apply_link": "https://nfsa.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/garib-kalyan-anna-yojana"
+    }
+  },
+  {
+    "text": "PMAY-Gramin: Interest subvention and financial help for rural housing construction.",
+    "metadata": {
+      "scheme": "PMAY-G",
+      "apply_link": "https://pmayg.nic.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmay-g"
+    }
+  },
+  {
+    "text": "Kisan Credit Card (KCC): Provides timely credit to farmers for seasonal agriculture.",
+    "metadata": {
+      "scheme": "KCC",
+      "apply_link": "https://mkisan.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/kisan-credit-card-kcc"
+    }
+  },
+  {
+    "text": "PM SVANidhi Part 2: Working capital loan 2nd tranche (20k) and 3rd tranche (50k) eligibility.",
+    "metadata": {
+      "scheme": "SVANidhi-2",
+      "apply_link": "https://pmsvanidhi.mohua.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-svanidhi"
+    }
+  },
+  {
+    "text": "Rashtriya Krishi Vikas Yojana: Supporting holistic development of agriculture sectors.",
+    "metadata": {
+      "scheme": "RKVY",
+      "apply_link": "https://agricoop.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/rashtriya-krishi-vikas-yojana-rkvy-raftar"
+    }
+  },
+  {
+    "text": "PM-CARES for Children: Support for children orphaned by COVID-19 pandemic.",
+    "metadata": {
+      "scheme": "PM-CARES",
+      "apply_link": "https://www.pmcares.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-cares-for-children"
+    }
+  },
+  {
+    "text": "Sovereign Gold Bond (SGB): Government securities denominated in grams of gold.",
+    "metadata": {
+      "scheme": "SGB",
+      "apply_link": "https://www.rbi.org.in/Scripts/BS_ViewMasCirculars.aspx?Id=12175",
+      "source": "https://www.myscheme.gov.in/schemes/sovereign-gold-bond-scheme"
+    }
+  },
+  {
+    "text": "Gruha Lakshmi (Karnataka): Monthly financial assistance of Rs 2,000 to the woman head of house.",
+    "metadata": {
+      "scheme": "Gruha Lakshmi",
+      "apply_link": "https://ahara.kar.nic.in/",
+      "source": "https://www.myscheme.gov.in/schemes/gruha-lakshmi"
+    }
+  },
+  {
+    "text": "Shakti Scheme (Karnataka): Free bus travel facility for women and students.",
+    "metadata": {
+      "scheme": "Shakti",
+      "apply_link": "https://sevasindhuservices.karnataka.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/shakti-smart-card"
+    }
+  },
+  {
+    "text": "Anna Bhagya (Karnataka): 10 kg of free food grains for BPL and Antyodaya cardholders.",
+    "metadata": {
+      "scheme": "Anna Bhagya",
+      "apply_link": "https://ahara.kar.nic.in/",
+      "source": "https://www.myscheme.gov.in/schemes/anna-bhagya"
+    }
+  },
+  {
+    "text": "Rythu Bharosa (AP): Financial assistance of Rs 13,500 per year to farmers in Andhra Pradesh.",
+    "metadata": {
+      "scheme": "Rythu Bharosa",
+      "apply_link": "https://www.ap.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/ysr-rythu-bharosa"
+    }
+  },
+  {
+    "text": "Pudhumai Penn (Tamil Nadu): Rs 1,000 monthly scholarship for gov school girls joining college.",
+    "metadata": {
+      "scheme": "Pudhumai Penn",
+      "apply_link": "https://www.tn.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/moovalur-ramamirtham-ammaiyar-ninaivu-pudhumai-penn-thittam"
+    }
+  },
+  {
+    "text": "Magalir Urimai Thogai (Tamil Nadu): Financial help of Rs 1,000 per month for women heads.",
+    "metadata": {
+      "scheme": "Magalir Urimai",
+      "apply_link": "https://www.tn.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/kalaignar-magalir-urimai-thogai-thittam"
+    }
+  },
+  {
+    "text": "Swachh Bharat (Gramin): Financial incentive of Rs 12,000 provided for toilet construction.",
+    "metadata": {
+      "scheme": "Swachh Bharat",
+      "apply_link": "https://swachhbharatmissiongramin.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/swachh-bharat-mission-gramin-i"
+    }
+  },
+  {
+    "text": "Deendayal Antyodaya (NRLM): Organizing rural poor into self-help groups for livelihoods.",
+    "metadata": {
+      "scheme": "NRLM",
+      "apply_link": "https://aajeevika.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/deendayal-antyodaya-yojana-national-rural-livelihoods-mission-day-nrlm"
+    }
+  },
+  {
+    "text": "National Social Assistance Programme (NSAP): Social pensions for eligible elderly, widows, and persons with disabilities.",
+    "metadata": {
+      "scheme": "NSAP",
+      "apply_link": "https://nsap.nic.in/",
+      "source": "https://www.myscheme.gov.in/schemes/nsap"
+    }
+  },
+  {
+    "text": "Pradhan Mantri Fasal Bima Yojana (PMFBY): Crop insurance support against natural calamities and yield loss.",
+    "metadata": {
+      "scheme": "PMFBY",
+      "apply_link": "https://pmfby.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmfby"
+    }
+  },
+  {
+    "text": "Soil Health Card Scheme: Periodic soil testing and nutrient recommendations for better farm productivity.",
+    "metadata": {
+      "scheme": "Soil Health Card",
+      "apply_link": "https://soilhealth.dac.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/soil-health-card-scheme"
+    }
+  },
+  {
+    "text": "e-Shram Portal: Registration for unorganized workers to access social security benefits.",
+    "metadata": {
+      "scheme": "e-Shram",
+      "apply_link": "https://eshram.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/e-shram"
+    }
+  },
+  {
+    "text": "National Apprenticeship Promotion Scheme (NAPS): Apprenticeship opportunities with stipend support for youth.",
+    "metadata": {
+      "scheme": "NAPS",
+      "apply_link": "https://www.apprenticeshipindia.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/naps"
+    }
+  },
+  {
+    "text": "PM eVIDYA: Digital and TV-based learning support for school students across India.",
+    "metadata": {
+      "scheme": "PM eVIDYA",
+      "apply_link": "https://pmevidya.education.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pm-evidya"
+    }
+  },
+  {
+    "text": "National Scholarship Portal (NSP): Centralized online scholarships for school and college students.",
+    "metadata": {
+      "scheme": "NSP Scholarships",
+      "apply_link": "https://scholarships.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/nsp"
+    }
+  },
+  {
+    "text": "PM Ujjwala 2.0: Additional LPG connection support for eligible poor households with simplified KYC.",
+    "metadata": {
+      "scheme": "Ujjwala 2.0",
+      "apply_link": "https://www.pmuy.gov.in/ujjwala2.html",
+      "source": "https://www.myscheme.gov.in/schemes/pm-ujjwala-yojana"
+    }
+  },
+  {
+    "text": "PM Jan Arogya Yojana Ayushman Card: Ayushman card generation and hospital search services.",
+    "metadata": {
+      "scheme": "Ayushman Card",
+      "apply_link": "https://beneficiary.nha.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmjay"
+    }
+  },
+  {
+    "text": "National Livestock Mission: Financial support for entrepreneurship and breed improvement in livestock sector.",
+    "metadata": {
+      "scheme": "National Livestock Mission",
+      "apply_link": "https://nlm.udyamimitra.in/",
+      "source": "https://www.myscheme.gov.in/schemes/national-livestock-mission"
+    }
+  },
+  {
+    "text": "PM Formalisation of Micro Food Processing Enterprises (PMFME): Credit-linked support for food micro-enterprises.",
+    "metadata": {
+      "scheme": "PMFME",
+      "apply_link": "https://pmfme.mofpi.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/pmfme"
+    }
+  },
+  {
+    "text": "Atal Mission for Rejuvenation and Urban Transformation (AMRUT): Urban water supply and sewerage infrastructure improvements.",
+    "metadata": {
+      "scheme": "AMRUT",
+      "apply_link": "https://amrut.gov.in/",
+      "source": "https://www.myscheme.gov.in/schemes/amrut"
+    }
+  }
+]

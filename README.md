@@ -63,6 +63,9 @@ Judges often ask: *"How is this different from Google Voice Search?"*
 - **In-Memory Scalability**: Optimized for low-footprint deployment on Render Free Tier (~200MB RAM usage).
 - **Sustainable Scaling**: Built entirely on **Free Tier infrastructure** (Google AI Studio, Groq Free, Qdrant Cloud), making it viable for 100% free deployment to millions of citizens.
 
+### Known Limitation (current demo scope)
+- `AgentPlan` fields like `documents_needed` and criteria explanations are model-generated from grounded sources; they are filtered for source references/URLs, but not yet claim-by-claim grounded with the same strict verifier used for final answer claims.
+
 ---
 
 ## 🚀 Setup & Installation
