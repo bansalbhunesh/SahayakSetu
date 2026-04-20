@@ -66,9 +66,6 @@ if not QDRANT_URL or not GEMINI_API_KEY:
         f"GEMINI_API_KEY={'set' if GEMINI_API_KEY else 'MISSING'}"
     )
 
-if ENV == "production" and not VAPI_WEBHOOK_SECRET:
-    raise RuntimeError("VAPI_WEBHOOK_SECRET is required in production.")
-
 qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY or None)
 qdrant_client.set_model(EMBEDDING_MODEL)
 
