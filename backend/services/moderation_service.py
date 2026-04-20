@@ -21,11 +21,20 @@ from backend.services.resilience import async_retry, log_pipeline_step, with_tim
 logger = logging.getLogger(__name__)
 
 # High-confidence welfare / civic intent — avoids false blocks on short benign queries.
+# English/Latin tokens use word boundaries; Devanagari phrases are matched without \\b
+# (\\b is unreliable for Hindi script).
 _WELFARE_CIVIC_HINT = re.compile(
-    r"\b(scheme|yojana|yojna|pm[-\s]?|pradhan|mantri|aadhaar|aadhar|loan|subsidy|"
+    r"(?:"
+    r"\b(?:scheme|yojana|yojna|pm[-\s]?|pradhan|mantri|aadhaar|aadhar|loan|subsidy|"
     r"welfare|benefit|eligibility|farmer|kisan|woman|women|mahila|student|scholarship|"
     r"ration|ayushman|ujjwala|mudra|housing|pension|bpl|government|sarkari|"
-    r"csc|myscheme|apply|documents?|grant)\b",
+    r"csc|myscheme|apply|documents?|grant|mgnrega|nrega)\b"
+    r"|"
+    r"मनरेगा|महात्मा\s*गांधी|महात्मा\s*गाँधी|ग्रामीण\s*रोजगार|ग्रामीण\s*रोज़गार|"
+    r"योजना|योजनाएं|योजनाओं|स्कीम|स्कीमों|किसान|महिला|छात्र|"
+    r"सरकार|सरकारी|लाभ|पेंशन|राशन|आयुष्मान|उज्ज्वला|मुद्रा|आवास|भत्ता|अनुदान|आवेदन|"
+    r"बताइए|बताएं|बताओ|जानकारी|दस्तावेज़|पंजीकरण|लाभार्थी|कल्याण"
+    r")",
     re.IGNORECASE,
 )
 # Do not fast-allow when these appear (still run full classifier).
@@ -72,6 +81,16 @@ def _parse_json_best_effort(raw: str) -> dict:
             raise
         parsed = json.loads(match.group(0))
         return parsed if isinstance(parsed, dict) else {}
+
+
+def _welfare_heuristic_match(text: str) -> bool:
+    """True if query looks like welfare / scheme intent (used on classifier failure)."""
+    q = (text or "").strip()
+    if not q:
+        return False
+    if _HARMFUL_HINT.search(q):
+        return False
+    return bool(_WELFARE_CIVIC_HINT.search(q))
 
 
 def _fast_path_allow(query: str) -> ModerationResult | None:
@@ -133,6 +152,12 @@ async def _classify_intent(classifier_input: str, *, conversation: bool) -> Mode
             exc,
             (raw[:500] + "…") if len(raw) > 500 else raw,
         )
+        if _welfare_heuristic_match(classifier_input):
+            logger.warning(
+                "moderation_fallback action=fail_open reason=json_parse_error_heuristic_welfare strict=%s",
+                MODERATION_STRICT,
+            )
+            return _FAIL_OPEN
         if MODERATION_STRICT:
             logger.warning(
                 "moderation_fallback action=fail_closed reason=json_parse_error strict=%s",
@@ -152,6 +177,12 @@ async def _classify_intent(classifier_input: str, *, conversation: bool) -> Mode
             exc,
             exc_info=True,
         )
+        if _welfare_heuristic_match(classifier_input):
+            logger.warning(
+                "moderation_fallback action=fail_open reason=moderation_call_error_heuristic_welfare strict=%s",
+                MODERATION_STRICT,
+            )
+            return _FAIL_OPEN
         if MODERATION_STRICT:
             logger.warning(
                 "moderation_fallback action=fail_closed reason=moderation_call_error strict=%s",
