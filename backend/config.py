@@ -38,8 +38,9 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 # True: moderation JSON/call failures block (fail-closed). False: fail-open (local dev).
 MODERATION_STRICT = _env_bool("MODERATION_STRICT", False)
-# True enables structured JSON generation path for /api/search (staged rollout).
-LLM_JSON_MODE = _env_bool("LLM_JSON_MODE", False)
+# True enables structured JSON generation path for /api/search.
+# Default ON in production to keep grounding verifier active.
+LLM_JSON_MODE = _env_bool("LLM_JSON_MODE", ENV == "production")
 # Enable lightweight hybrid retrieval: vector score + keyword overlap blend.
 HYBRID_RETRIEVAL = _env_bool("HYBRID_RETRIEVAL", False)
 DEBUG_RETRIEVAL = _env_bool("DEBUG_RETRIEVAL", False)

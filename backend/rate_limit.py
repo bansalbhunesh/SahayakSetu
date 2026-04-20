@@ -10,11 +10,11 @@ from starlette.requests import Request
 
 
 def _user_key(request: Request) -> str:
-    # Prefer app-provided user id, then forwarded IP, then socket IP.
+    # Prefer network identity; never trust client user-id first.
     return (
-        request.headers.get("x-user-id")
-        or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
         or get_remote_address(request)
+        or request.headers.get("x-user-id")
     )
 
 

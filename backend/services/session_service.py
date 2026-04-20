@@ -105,8 +105,8 @@ def _redis_safe(fail_default):
         async def wrapper(*args, **kwargs):
             try:
                 return await fn(*args, **kwargs)
-            except (redis.ConnectionError, redis.TimeoutError):
-                logger.warning("redis_unavailable", extra={"fn": fn.__name__})
+            except Exception:
+                logger.error("redis_unavailable", extra={"fn": fn.__name__}, exc_info=True)
                 if fail_default is _RAISE:
                     raise
                 return fail_default
@@ -129,7 +129,7 @@ async def append(user_id: str, query: str, answer: str) -> None:
         pass
 
 
-@_redis_safe((DAILY_LLM_CAP + 1, DAILY_LLM_CAP))
+@_redis_safe((0, DAILY_LLM_CAP))
 async def increment_daily_llm_counter() -> tuple[int, int]:
     """Returns (used_today, cap). Fail-open if Redis unavailable."""
     count = await _client().incr("budget:llm:today")
@@ -138,7 +138,7 @@ async def increment_daily_llm_counter() -> tuple[int, int]:
     return int(count), DAILY_LLM_CAP
 
 
-@_redis_safe(False)
+@_redis_safe(True)
 async def check_user_llm_quota(user_id: str, daily_max: int = 100) -> bool:
     """Returns True if user is under daily LLM cap (fail-open on Redis errors)."""
     key = f"quota:llm:{user_id}"

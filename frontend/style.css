@@ -941,6 +941,18 @@ select:focus-visible {
 }
 .ns-step strong { font-size: 0.9rem; color: var(--color-text); }
 .ns-step p { font-size: 0.78rem; color: var(--color-text-muted); }
+.ns-plan-subtitle {
+    margin: 2px 0 6px;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+.ns-plan-list {
+    margin: 0 0 10px 18px;
+    font-size: 0.8rem;
+    color: var(--color-text);
+}
 
 .confidence-meter {
     height: 6px;

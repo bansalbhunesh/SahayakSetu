@@ -176,6 +176,7 @@ async function submitQuery(query) {
             confidence: payload.confidence,
             nextStep: payload.next_step,
             queryDebug: payload.query_debug,
+            plan: payload.plan,
         });
         if (payload.retrieval_debug) {
             appState.lastRetrievalDebug = payload.retrieval_debug;

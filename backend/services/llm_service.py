@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import re
 
 from fastapi import HTTPException
 
 from backend.config import CHAT_MODEL, gemini_model, groq_client
 from backend.prompts.system_prompt import SYSTEM_PROMPT
+logger = logging.getLogger(__name__)
 
 MARK_ANSWER = "<<<ANSWER>>>"
 MARK_WHY = "<<<WHY_IT_FITS>>>"
@@ -197,10 +200,10 @@ async def generate(messages: list[dict]) -> tuple[str, str]:
                 prompt_parts.append(f"{role}: {msg['content']}")
 
         full_prompt = "\n".join(prompt_parts)
-        response = gemini_model.generate_content(full_prompt)
+        response = await asyncio.to_thread(gemini_model.generate_content, full_prompt)
         return response.text, CHAT_MODEL
     except Exception as e:
-        print(f"[WARNING] Primary LLM {CHAT_MODEL} failed: {e}")
+        logger.warning("primary_llm_failed", extra={"provider": CHAT_MODEL, "error": str(e)[:160]})
         if groq_client:
             try:
                 response = groq_client.chat.completions.create(
@@ -210,12 +213,12 @@ async def generate(messages: list[dict]) -> tuple[str, str]:
                 )
                 return response.choices[0].message.content, "groq-llama-3.3"
             except Exception as ge:
-                print(f"[ERROR] Groq fallback also failed: {ge}")
+                logger.exception("llm_fallback_failed", extra={"error": str(ge)[:160]})
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Both LLMs failed. Gemini: {e}, Groq: {ge}",
+                    detail="LLM generation failed. Please retry.",
                 ) from ge
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="LLM generation failed. Please retry.") from e
 
 
 def _flatten_prompt(messages: list[dict]) -> str:
@@ -261,7 +264,8 @@ async def generate_json(messages: list[dict]) -> tuple[dict, str]:
         return data
 
     try:
-        response = gemini_model.generate_content(
+        response = await asyncio.to_thread(
+            gemini_model.generate_content,
             prompt,
             generation_config={
                 "response_mime_type": "application/json",
@@ -274,7 +278,8 @@ async def generate_json(messages: list[dict]) -> tuple[dict, str]:
     except Exception as e:
         # One deterministic retry at temperature 0 before fallback.
         try:
-            response_retry = gemini_model.generate_content(
+            response_retry = await asyncio.to_thread(
+                gemini_model.generate_content,
                 prompt,
                 generation_config={
                     "response_mime_type": "application/json",
@@ -297,17 +302,19 @@ async def generate_json(messages: list[dict]) -> tuple[dict, str]:
                 data = _parse_dict(response.choices[0].message.content or "")
                 return data, "groq-llama-3.3"
             except Exception as ge:
+                logger.exception("structured_llm_fallback_failed", extra={"error": str(ge)[:160]})
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Structured JSON generation failed. Gemini: {e}, Groq: {ge}",
+                    detail="Structured JSON generation failed. Please retry.",
                 ) from ge
-        raise HTTPException(status_code=500, detail=f"Structured JSON generation failed: {e}") from e
+        raise HTTPException(status_code=500, detail="Structured JSON generation failed. Please retry.") from e
 
 
 async def generate_json_prompt(prompt: str) -> tuple[dict, str]:
     """Single-prompt strict JSON generation helper."""
     try:
-        response = gemini_model.generate_content(
+        response = await asyncio.to_thread(
+            gemini_model.generate_content,
             prompt,
             generation_config={
                 "response_mime_type": "application/json",
@@ -330,7 +337,7 @@ async def rewrite_query(query: str, language: str) -> str:
         f"User query: {query}"
     )
     try:
-        resp = gemini_model.generate_content(prompt)
+        resp = await asyncio.to_thread(gemini_model.generate_content, prompt)
         rewritten = (resp.text or "").strip()
         if rewritten:
             return rewritten.splitlines()[0].strip()

@@ -15,7 +15,7 @@ from backend.config import (
     VAPI_WEBHOOK_SECRET,
 )
 from backend.rate_limit import limiter
-from backend.services import moderation_service, retrieval_service
+from backend.services import injection_guard, moderation_service, pii_scrubber, retrieval_service
 from backend.services.language_hint import infer_bcp47
 from backend.services.llm_service import generate
 
@@ -94,6 +94,40 @@ def _conversation_transcript_for_moderation(messages: list[Any], max_chars: int 
     return out
 
 
+def _sanitize_chat_messages(messages: list[Any]) -> tuple[list[Any], bool]:
+    """Sanitize text parts for chat/completions and flag suspicious injection prompts."""
+    sanitized: list[Any] = []
+    suspicious = False
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        content = m.get("content")
+        if role not in ("user", "assistant"):
+            sanitized.append(m)
+            continue
+        if isinstance(content, str):
+            safe, flag = injection_guard.sanitize_query(content)
+            safe, _ = pii_scrubber.scrub(safe)
+            suspicious = suspicious or flag
+            sanitized.append({**m, "content": safe})
+            continue
+        if isinstance(content, list):
+            blocks = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    safe, flag = injection_guard.sanitize_query(str(block.get("text", "")))
+                    safe, _ = pii_scrubber.scrub(safe)
+                    suspicious = suspicious or flag
+                    blocks.append({**block, "text": safe})
+                else:
+                    blocks.append(block)
+            sanitized.append({**m, "content": blocks})
+            continue
+        sanitized.append(m)
+    return sanitized, suspicious
+
+
 @router.post("/vapi-webhook")
 @limiter.limit(
     "30/minute",
@@ -130,7 +164,18 @@ async def handle_vapi_webhook(request: Request):
             if call["function"]["name"] == "search_schemes":
                 args = json.loads(call["function"]["arguments"])
                 query_text = args.get("query", "")
+                query_text, suspicious = injection_guard.sanitize_query(query_text)
+                query_text, _ = pii_scrubber.scrub(query_text)
                 lang = args.get("language") or infer_bcp47(query_text)
+
+                if suspicious:
+                    results.append(
+                        {
+                            "toolCallId": call["id"],
+                            "result": "Please ask a normal welfare-scheme question and avoid instruction-style prompts.",
+                        }
+                    )
+                    continue
 
                 moderation = await moderation_service.check(query_text, lang)
                 if not moderation.allowed:
@@ -165,6 +210,24 @@ async def handle_chat_completions(request: Request):
     _verify_chat_completions_secret(request)
     webhook_body: dict[str, Any] = await request.json()
     messages = webhook_body.get("messages", [])
+    messages, suspicious = _sanitize_chat_messages(messages)
+    if suspicious:
+        return {
+            "id": f"chatcmpl-{int(time.time())}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": "security",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Please ask a normal welfare-scheme question and avoid instruction-style prompts.",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+        }
     transcript = _conversation_transcript_for_moderation(messages)
     last_user = _last_user_plain_text(messages)
     mod_lang = infer_bcp47(last_user or transcript or "")

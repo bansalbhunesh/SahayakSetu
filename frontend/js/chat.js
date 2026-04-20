@@ -7,14 +7,15 @@ export function confidenceEmojiForLabel(label) {
     return "🟠 ";
 }
 
-function confidenceMeta(confidence) {
-    if (confidence === "high") return { status: "verified", label: "VERIFIED", score: 0.82, grounded: "Grounded match" };
-    if (confidence === "medium") return { status: "partial", label: "PARTIAL", score: 0.56, grounded: "Needs verification" };
-    return { status: "unverified", label: "UNVERIFIED", score: 0.28, grounded: "Needs more profile info" };
+function confidenceMeta(confidence, score) {
+    const bounded = Math.max(0, Math.min(1, typeof score === "number" ? score : 0));
+    if (confidence === "high") return { status: "verified", label: "VERIFIED", score: bounded, grounded: "Grounded match" };
+    if (confidence === "medium") return { status: "partial", label: "PARTIAL", score: bounded, grounded: "Needs verification" };
+    return { status: "unverified", label: "UNVERIFIED", score: bounded, grounded: "Needs more profile info" };
 }
 
-function renderConfidenceArc(confidence) {
-    const meta = confidenceMeta(confidence);
+function renderConfidenceArc(confidence, score) {
+    const meta = confidenceMeta(confidence, score);
     const pct = Math.round(meta.score * 100);
     const host = document.createElement("div");
     host.className = "confidence-arc";
@@ -59,6 +60,41 @@ function renderNextStepPanel(nextStep) {
           <div><strong>${nextStep.trim()}</strong><p>Use official links below to continue safely.</p></div>
         </li>
       </ol>
+    `;
+    return panel;
+}
+
+function renderPlanPanel(plan) {
+    if (!plan || typeof plan !== "object") return null;
+    const steps = Array.isArray(plan.steps) ? plan.steps : [];
+    const docs = Array.isArray(plan.documents_needed) ? plan.documents_needed : [];
+    const status = typeof plan.status === "string" ? plan.status.replaceAll("_", " ") : "plan";
+    if (!steps.length && !docs.length) return null;
+    const panel = document.createElement("section");
+    panel.className = "next-step";
+    const docsHtml = docs.length
+        ? `<p class="ns-plan-subtitle">Documents</p><ul class="ns-plan-list">${docs
+              .slice(0, 6)
+              .map((d) => `<li>${d}</li>`)
+              .join("")}</ul>`
+        : "";
+    const stepsHtml = steps
+        .slice(0, 4)
+        .map(
+            (step, idx) => `
+          <li class="ns-step">
+            <span class="ns-dot">${step.order || idx + 1}</span>
+            <div><strong>${step.action || "Action"}</strong><p>${step.where || step.estimated_time || ""}</p></div>
+          </li>`,
+        )
+        .join("");
+    panel.innerHTML = `
+      <header class="ns-head">
+        <span class="ns-kicker">ACTION PLAN</span>
+        <span class="ns-est">${status}</span>
+      </header>
+      ${docsHtml}
+      <ol class="ns-track">${stepsHtml}</ol>
     `;
     return panel;
 }
@@ -285,7 +321,7 @@ export function appendMessageToChat(role, content, options = {}) {
 
     const wrap = document.createElement("div");
     wrap.className = "assistant-wrap";
-    if (options.confidence) wrap.appendChild(renderConfidenceArc(options.confidence));
+    if (options.confidence) wrap.appendChild(renderConfidenceArc(options.confidence, options.topScore));
     const queryPill = renderQueryUnderstanding(options.queryDebug);
     if (queryPill) wrap.appendChild(queryPill);
     const msg = document.createElement("div");
@@ -342,6 +378,8 @@ export function appendMessageToChat(role, content, options = {}) {
     appendAssistantSourceLinks(wrap, options.sources || [], "Official portals (verified)");
     const next = renderNextStepPanel(options.nextStep);
     if (next) wrap.appendChild(next);
+    const plan = renderPlanPanel(options.plan);
+    if (plan) wrap.appendChild(plan);
     chat.appendChild(wrap);
     wrap.scrollIntoView({ behavior: "smooth", block: "end" });
 }
