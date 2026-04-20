@@ -7,6 +7,8 @@ export const appState = {
     sessionUserId: localStorage.getItem(SESSION_USER_ID_KEY) || "",
     sessionSchemeNames: new Set(),
     currentSheetScheme: "",
+    lastRetrievalDebug: null,
+    lastTraceId: null,
 };
 
 export function setSessionUserId(id) {

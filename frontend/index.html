@@ -264,15 +264,50 @@
 
         <aside class="sidebar" id="sessionSidebar" aria-label="Active session">
             <div class="sidebar-card">
-                <h3 class="sidebar-heading">Active Session</h3>
-                <p class="sidebar-label">Language</p>
-                <p class="sidebar-lang" id="sidebarLangDisplay">🇮🇳 हिन्दी</p>
-                <p class="sidebar-label">Schemes mentioned</p>
-                <div class="scheme-pills" id="schemePills"></div>
-                <button type="button" class="share-btn" id="shareTranscriptBtn" data-action="share-transcript">Share conversation</button>
+                <h3 class="sidebar-heading">Evidence Panel</h3>
+                <div class="sidebar-tabs" role="tablist" aria-label="Evidence sections">
+                    <button type="button" class="sidebar-tab active" data-action="sidebar-tab" data-tab="trust" role="tab" aria-selected="true">Trust</button>
+                    <button type="button" class="sidebar-tab" data-action="sidebar-tab" data-tab="evidence" role="tab" aria-selected="false">Evidence</button>
+                    <button type="button" class="sidebar-tab" data-action="sidebar-tab" data-tab="session" role="tab" aria-selected="false">Session</button>
+                </div>
+                <div class="sidebar-panel active" id="sidebarPanelTrust" data-panel="trust">
+                    <div class="sidebar-trust" id="sidebarTrust">
+                        <div class="sidebar-trust-head">
+                            <span class="sidebar-trust-dot" id="sidebarTrustDot"></span>
+                            <span id="sidebarTrustLabel">Awaiting query</span>
+                        </div>
+                        <p id="sidebarTrustHint">Ask a question to see confidence, rewritten intent, and evidence signals.</p>
+                    </div>
+                    <p class="sidebar-label">Query Understanding</p>
+                    <p class="sidebar-query" id="sidebarQueryUnderstanding">-</p>
+                </div>
+                <div class="sidebar-panel" id="sidebarPanelEvidence" data-panel="evidence">
+                    <p class="sidebar-label">Top Evidence</p>
+                    <div class="sidebar-evidence-list" id="sidebarEvidenceList">
+                        <p class="sidebar-empty">No evidence yet.</p>
+                    </div>
+                </div>
+                <div class="sidebar-panel" id="sidebarPanelSession" data-panel="session">
+                    <p class="sidebar-label">Language</p>
+                    <p class="sidebar-lang" id="sidebarLangDisplay">🇮🇳 हिन्दी</p>
+                    <p class="sidebar-label">Schemes mentioned</p>
+                    <div class="scheme-pills" id="schemePills"></div>
+                    <button type="button" class="share-btn" id="shareTranscriptBtn" data-action="share-transcript">Share conversation</button>
+                </div>
             </div>
         </aside>
     </main>
+
+    <aside class="debug-drawer" id="debugDrawer" aria-hidden="true">
+        <div class="debug-drawer-header">
+            <div>
+                <h3>Retrieval Trace</h3>
+                <p id="debugTraceId">Press Ctrl/Cmd + D after a response</p>
+            </div>
+            <button type="button" class="sheet-close" data-action="close-debug" aria-label="Close debug">×</button>
+        </div>
+        <pre class="debug-drawer-content" id="debugDrawerContent">No retrieval debug payload yet.</pre>
+    </aside>
 
     <div class="scheme-sheet" id="schemeSheet" aria-hidden="true">
         <div class="scheme-sheet-backdrop" id="schemeSheetBackdrop" data-action="close-sheet"></div>

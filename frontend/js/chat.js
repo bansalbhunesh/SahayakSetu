@@ -7,6 +7,62 @@ export function confidenceEmojiForLabel(label) {
     return "🟠 ";
 }
 
+function confidenceMeta(confidence) {
+    if (confidence === "high") return { status: "verified", label: "VERIFIED", score: 0.82, grounded: "Grounded match" };
+    if (confidence === "medium") return { status: "partial", label: "PARTIAL", score: 0.56, grounded: "Needs verification" };
+    return { status: "unverified", label: "UNVERIFIED", score: 0.28, grounded: "Needs more profile info" };
+}
+
+function renderConfidenceArc(confidence) {
+    const meta = confidenceMeta(confidence);
+    const pct = Math.round(meta.score * 100);
+    const host = document.createElement("div");
+    host.className = "confidence-arc";
+    host.dataset.status = meta.status;
+    host.style.setProperty("--pct", String(pct));
+    host.innerHTML = `
+      <svg viewBox="0 0 64 64" class="arc-svg" aria-hidden="true">
+        <path class="arc-bg" d="M 8 44 A 24 24 0 1 1 56 44"></path>
+        <path class="arc-fill" d="M 8 44 A 24 24 0 1 1 56 44" pathLength="100"></path>
+      </svg>
+      <div class="arc-score">${meta.score.toFixed(2)}</div>
+      <div class="arc-label">${meta.label}</div>
+      <div class="arc-sub">${meta.grounded}</div>
+    `;
+    return host;
+}
+
+function renderQueryUnderstanding(queryDebug) {
+    if (!queryDebug || !queryDebug.original || !queryDebug.rewritten) return null;
+    const box = document.createElement("div");
+    box.className = "query-understanding";
+    box.innerHTML = `
+      <span class="qu-raw">${queryDebug.original}</span>
+      <span class="qu-arrow">→</span>
+      <span class="qu-parsed">${queryDebug.rewritten}</span>
+    `;
+    return box;
+}
+
+function renderNextStepPanel(nextStep) {
+    if (!nextStep || !nextStep.trim()) return null;
+    const panel = document.createElement("section");
+    panel.className = "next-step";
+    panel.innerHTML = `
+      <header class="ns-head">
+        <span class="ns-kicker">NEXT STEP</span>
+        <span class="ns-est">⏱ quick action</span>
+      </header>
+      <ol class="ns-track">
+        <li class="ns-step">
+          <span class="ns-dot">1</span>
+          <div><strong>${nextStep.trim()}</strong><p>Use official links below to continue safely.</p></div>
+        </li>
+      </ol>
+    `;
+    return panel;
+}
+
 export function stripCitationMarkers(text) {
     if (!text) return "";
     return text.replace(/\s*\[\d+\]/g, "").trim();
@@ -229,18 +285,9 @@ export function appendMessageToChat(role, content, options = {}) {
 
     const wrap = document.createElement("div");
     wrap.className = "assistant-wrap";
-    const confidenceMap = {
-        high: "Verified match",
-        medium: "Possible match",
-        low: "Needs more info",
-    };
-    if (options.confidence && confidenceMap[options.confidence]) {
-        const chip = document.createElement("div");
-        chip.className = "confidence-label";
-        const emoji = options.confidence === "high" ? "🟢 " : options.confidence === "medium" ? "🟡 " : "🔴 ";
-        chip.textContent = `${emoji}${confidenceMap[options.confidence]}`;
-        wrap.appendChild(chip);
-    }
+    if (options.confidence) wrap.appendChild(renderConfidenceArc(options.confidence));
+    const queryPill = renderQueryUnderstanding(options.queryDebug);
+    if (queryPill) wrap.appendChild(queryPill);
     const msg = document.createElement("div");
     msg.className = "message assistant";
 
@@ -292,55 +339,9 @@ export function appendMessageToChat(role, content, options = {}) {
         wrap.appendChild(panel);
     }
 
-    const topScore =
-        typeof options.topScore === "number"
-            ? options.topScore
-            : Array.isArray(options.sources) && options.sources.length
-              ? Math.max(...options.sources.map((s) => s.score || 0))
-              : null;
-
-    if (topScore !== null && !Number.isNaN(topScore)) {
-        const sortedSrc = [...(options.sources || [])].sort((a, b) => (b.score || 0) - (a.score || 0));
-        const serverLabel = sortedSrc[0]?.confidence_label;
-        const meter = document.createElement("div");
-        meter.className = "confidence-meter";
-        const fill = document.createElement("div");
-        fill.className = "confidence-meter-fill";
-        const pct = Math.round(Math.min(1, Math.max(0, topScore)) * 100);
-        fill.style.width = `${pct}%`;
-        let band = "mid";
-        let label = "Moderate match";
-        if (topScore < 0.4) {
-            band = "low";
-            label = "Low confidence";
-        } else if (topScore > 0.7) {
-            band = "high";
-            label = "Strong match (based on available data)";
-        }
-        fill.classList.add(band);
-        meter.appendChild(fill);
-        const cap = document.createElement("div");
-        cap.className = "confidence-label";
-        const displayLabel = serverLabel || label;
-        cap.textContent = `${confidenceEmojiForLabel(displayLabel)}${displayLabel} · match strength`;
-        wrap.appendChild(meter);
-        wrap.appendChild(cap);
-    }
-
     appendAssistantSourceLinks(wrap, options.sources || [], "Official portals (verified)");
-    if (options.nextStep && options.nextStep.trim()) {
-        const step = document.createElement("div");
-        step.className = "near-miss-panel";
-        const h = document.createElement("div");
-        h.className = "near-miss-panel-title";
-        h.textContent = "Next step";
-        const body = document.createElement("div");
-        body.className = "near-miss-panel-body";
-        body.textContent = options.nextStep.trim();
-        step.appendChild(h);
-        step.appendChild(body);
-        wrap.appendChild(step);
-    }
+    const next = renderNextStepPanel(options.nextStep);
+    if (next) wrap.appendChild(next);
     chat.appendChild(wrap);
     wrap.scrollIntoView({ behavior: "smooth", block: "end" });
 }

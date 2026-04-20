@@ -66,6 +66,75 @@ function setSessionFromPayload(payload) {
     }
 }
 
+function switchSidebarTab(tabName = "trust") {
+    const tabs = document.querySelectorAll('.sidebar-tab[data-tab]');
+    const panels = document.querySelectorAll('.sidebar-panel[data-panel]');
+    tabs.forEach((tab) => {
+        const active = tab.dataset.tab === tabName;
+        tab.classList.toggle("active", active);
+        tab.setAttribute("aria-selected", String(active));
+    });
+    panels.forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.panel === tabName);
+    });
+}
+
+function pulseEvidenceTab() {
+    const tab = document.querySelector('.sidebar-tab[data-tab="evidence"]');
+    if (!(tab instanceof HTMLElement)) return;
+    tab.classList.remove("tab-glow");
+    void tab.offsetWidth;
+    tab.classList.add("tab-glow");
+}
+
+function updateEvidencePanel(payload) {
+    const trustDot = document.getElementById("sidebarTrustDot");
+    const trustLabel = document.getElementById("sidebarTrustLabel");
+    const trustHint = document.getElementById("sidebarTrustHint");
+    const queryUnderstanding = document.getElementById("sidebarQueryUnderstanding");
+    const evidenceList = document.getElementById("sidebarEvidenceList");
+    if (!trustDot || !trustLabel || !trustHint || !queryUnderstanding || !evidenceList) return;
+
+    const confidence = payload?.confidence || "low";
+    const confidenceLabel =
+        confidence === "high" ? "Verified signal" : confidence === "medium" ? "Partial signal" : "Needs clarification";
+    trustLabel.textContent = confidenceLabel;
+    trustDot.dataset.level = confidence;
+    trustHint.textContent = payload?.next_step || "Grounded answer generated from retrieved government scheme sources.";
+
+    const qd = payload?.query_debug;
+    if (qd?.original && qd?.rewritten && qd.original !== qd.rewritten) {
+        queryUnderstanding.textContent = `${qd.original} -> ${qd.rewritten}`;
+    } else if (qd?.rewritten) {
+        queryUnderstanding.textContent = qd.rewritten;
+    } else {
+        queryUnderstanding.textContent = payload?.query || "No rewrite data for this response.";
+    }
+
+    const rows = Array.isArray(payload?.sources) ? [...payload.sources] : [];
+    rows.sort((a, b) => (b.score || 0) - (a.score || 0));
+    const topRows = rows.slice(0, 3);
+    evidenceList.innerHTML = "";
+    if (!topRows.length) {
+        evidenceList.innerHTML = `<p class="sidebar-empty">No evidence scores returned for this response.</p>`;
+        return;
+    }
+    topRows.forEach((source, idx) => {
+        const row = document.createElement("div");
+        row.className = "sidebar-evidence-row";
+        const pct = Math.round(Math.min(1, Math.max(0, source.score || 0)) * 100);
+        row.innerHTML = `
+          <div class="sidebar-evidence-head">
+            <span class="sidebar-evidence-rank">#${idx + 1}</span>
+            <span class="sidebar-evidence-name">${source.scheme || "Scheme source"}</span>
+            <span class="sidebar-evidence-score">${pct}%</span>
+          </div>
+          <div class="sidebar-evidence-meter"><span style="width:${pct}%"></span></div>
+        `;
+        evidenceList.appendChild(row);
+    });
+}
+
 async function submitQuery(query) {
     setStatusIndicator("Thinking...", "orange");
     showTypingIndicator();
@@ -89,6 +158,9 @@ async function submitQuery(query) {
                 variant: "moderation",
                 moderationCategory: payload.moderation_category,
             });
+            updateEvidencePanel(payload);
+            switchSidebarTab("evidence");
+            pulseEvidenceTab();
             setStatusIndicator("Ready", "green");
             return;
         }
@@ -103,10 +175,19 @@ async function submitQuery(query) {
             nearMissSources: payload.near_miss_sources || [],
             confidence: payload.confidence,
             nextStep: payload.next_step,
+            queryDebug: payload.query_debug,
         });
+        if (payload.retrieval_debug) {
+            appState.lastRetrievalDebug = payload.retrieval_debug;
+            appState.lastTraceId = resp.headers.get("X-Trace-Id") || "n/a";
+            renderDebugDrawer();
+        }
         sources.forEach((s) => s.scheme && appState.sessionSchemeNames.add(s.scheme));
         (payload.near_miss_sources || []).forEach((s) => s.scheme && appState.sessionSchemeNames.add(s.scheme));
         renderSchemePills(appState.sessionSchemeNames);
+        updateEvidencePanel(payload);
+        switchSidebarTab("evidence");
+        pulseEvidenceTab();
 
         if (!appState.vapiInstance || !appState.isVoiceCallActive) {
             speakResponseText(stripCitationMarkers(payload.answer), appState.selectedLanguage);
@@ -122,6 +203,38 @@ async function submitQuery(query) {
         setStatusIndicator("Error", "red");
         setTimeout(() => setStatusIndicator("Ready", "green"), 3000);
     }
+}
+
+function renderDebugDrawer() {
+    const host = document.getElementById("debugDrawerContent");
+    const trace = document.getElementById("debugTraceId");
+    if (!host || !trace) return;
+    trace.textContent = `Trace ID: ${appState.lastTraceId || "n/a"}`;
+    host.textContent = appState.lastRetrievalDebug
+        ? JSON.stringify(appState.lastRetrievalDebug, null, 2)
+        : "No retrieval debug payload yet.";
+}
+
+function toggleDebugDrawer(forceOpen = null) {
+    const drawer = document.getElementById("debugDrawer");
+    if (!drawer) return;
+    const isOpen = drawer.classList.contains("open");
+    const open = forceOpen === null ? !isOpen : Boolean(forceOpen);
+    drawer.classList.toggle("open", open);
+    drawer.setAttribute("aria-hidden", String(!open));
+}
+
+function decorateSchemeCards() {
+    document.querySelectorAll(".scheme-card").forEach((card) => {
+        const trigger = card.querySelector(".scheme-card-trigger");
+        const ministry = trigger?.getAttribute("data-ministry") || "";
+        const lower = ministry.toLowerCase();
+        if (lower.includes("finance")) card.dataset.ministry = "finance";
+        else if (lower.includes("health")) card.dataset.ministry = "health";
+        else if (lower.includes("housing") || lower.includes("urban")) card.dataset.ministry = "housing";
+        else if (lower.includes("agriculture") || lower.includes("farm")) card.dataset.ministry = "agri";
+        else card.dataset.ministry = "default";
+    });
 }
 
 function handleTextSubmit() {
@@ -267,6 +380,8 @@ function wireDomEvents() {
         if (action === "send-text") handleTextSubmit();
         if (action === "share-transcript") downloadConversationTranscript();
         if (action === "close-sheet") closeSchemeSheet();
+        if (action === "close-debug") toggleDebugDrawer(false);
+        if (action === "sidebar-tab") switchSidebarTab(actionEl.dataset.tab || "trust");
         if (action === "select-language") {
             const lang = actionEl.dataset.lang;
             if (lang) applyLanguageSelection(lang, actionEl);
@@ -287,6 +402,14 @@ function wireDomEvents() {
             if (target) target.scrollIntoView({ behavior: "smooth" });
         });
     });
+
+    document.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+            event.preventDefault();
+            toggleDebugDrawer();
+        }
+        if (event.key === "Escape") toggleDebugDrawer(false);
+    });
 }
 
 function bootstrap() {
@@ -294,6 +417,8 @@ function bootstrap() {
     initialiseVapiSDK();
     wireSchemeSheet();
     wireDomEvents();
+    decorateSchemeCards();
+    switchSidebarTab("trust");
 
     if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = () => {
