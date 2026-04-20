@@ -24,8 +24,8 @@
             </div>
             <div class="header-actions">
                 <div class="mode-toggle" role="group" aria-label="Interaction mode">
-                    <button type="button" class="mode-btn active" id="modeTalkBtn" onclick="setInteractionMode('talk')">Talk</button>
-                    <button type="button" class="mode-btn" id="modeFinderBtn" onclick="setInteractionMode('finder')">Find Schemes</button>
+                    <button type="button" class="mode-btn active" id="modeTalkBtn" data-action="mode-talk">Talk</button>
+                    <button type="button" class="mode-btn" id="modeFinderBtn" data-action="mode-finder">Find Schemes</button>
                 </div>
                 <nav class="nav">
                     <a href="#features" class="nav-link">Features</a>
@@ -49,16 +49,16 @@
                     <p class="hero-subtitle">Ask about government schemes in your mother tongue. Instant, verified answers powered by Gemini 2.0 Flash.</p>
 
                     <div class="language-selector" id="languageSelector">
-                        <button type="button" class="lang-pill active" data-lang="hi-IN" onclick="applyLanguageSelection('hi-IN', this)"><span class="lang-check" aria-hidden="true">✓</span>हिन्दी</button>
-                        <button type="button" class="lang-pill" data-lang="kn-IN" onclick="applyLanguageSelection('kn-IN', this)"><span class="lang-check" aria-hidden="true">✓</span>ಕನ್ನಡ</button>
-                        <button type="button" class="lang-pill" data-lang="ta-IN" onclick="applyLanguageSelection('ta-IN', this)"><span class="lang-check" aria-hidden="true">✓</span>தமிழ்</button>
-                        <button type="button" class="lang-pill" data-lang="te-IN" onclick="applyLanguageSelection('te-IN', this)"><span class="lang-check" aria-hidden="true">✓</span>తెలుగు</button>
-                        <button type="button" class="lang-pill" data-lang="bn-IN" onclick="applyLanguageSelection('bn-IN', this)"><span class="lang-check" aria-hidden="true">✓</span>বাংলা</button>
-                        <button type="button" class="lang-pill" data-lang="en-IN" onclick="applyLanguageSelection('en-IN', this)"><span class="lang-check" aria-hidden="true">✓</span>English</button>
+                        <button type="button" class="lang-pill active" data-action="select-language" data-lang="hi-IN"><span class="lang-check" aria-hidden="true">✓</span>हिन्दी</button>
+                        <button type="button" class="lang-pill" data-action="select-language" data-lang="kn-IN"><span class="lang-check" aria-hidden="true">✓</span>ಕನ್ನಡ</button>
+                        <button type="button" class="lang-pill" data-action="select-language" data-lang="ta-IN"><span class="lang-check" aria-hidden="true">✓</span>தமிழ்</button>
+                        <button type="button" class="lang-pill" data-action="select-language" data-lang="te-IN"><span class="lang-check" aria-hidden="true">✓</span>తెలుగు</button>
+                        <button type="button" class="lang-pill" data-action="select-language" data-lang="bn-IN"><span class="lang-check" aria-hidden="true">✓</span>বাংলা</button>
+                        <button type="button" class="lang-pill" data-action="select-language" data-lang="en-IN"><span class="lang-check" aria-hidden="true">✓</span>English</button>
                     </div>
 
                     <div class="voice-section">
-                        <button class="voice-btn" id="voiceBtn" type="button" onclick="handleVoiceToggle()" aria-label="Voice call">
+                        <button class="voice-btn" id="voiceBtn" type="button" data-action="toggle-voice" aria-label="Voice call">
                             <div class="voice-btn-inner">
                                 <div class="voice-waveform hidden" id="voiceWaveform" aria-hidden="true">
                                     <span class="wave-bar"></span>
@@ -78,7 +78,7 @@
                     <div class="text-input-section">
                         <div class="text-input-wrapper">
                             <input type="text" id="textInput" class="text-input" placeholder="Type in any language..." autocomplete="off" />
-                            <button class="send-btn" type="button" onclick="handleTextSubmit()" aria-label="Send">➤</button>
+                            <button class="send-btn" id="sendBtn" type="button" data-action="send-text" aria-label="Send">➤</button>
                         </div>
                     </div>
                 </div>
@@ -86,7 +86,7 @@
                 <div class="finder-panel hidden" id="finderPanel" aria-hidden="true">
                     <h2 class="finder-title">Eligibility Finder</h2>
                     <p class="finder-sub">Tell us a little about you — we will search schemes in plain language.</p>
-                    <form class="finder-form" id="eligibilityForm" onsubmit="handleEligibilitySubmit(event)">
+                    <form class="finder-form" id="eligibilityForm">
                         <label class="finder-label" for="finderState">State</label>
                         <select id="finderState" class="finder-select" required></select>
 
@@ -269,15 +269,15 @@
                 <p class="sidebar-lang" id="sidebarLangDisplay">🇮🇳 हिन्दी</p>
                 <p class="sidebar-label">Schemes mentioned</p>
                 <div class="scheme-pills" id="schemePills"></div>
-                <button type="button" class="share-btn" onclick="downloadConversationTranscript()">Share conversation</button>
+                <button type="button" class="share-btn" id="shareTranscriptBtn" data-action="share-transcript">Share conversation</button>
             </div>
         </aside>
     </main>
 
     <div class="scheme-sheet" id="schemeSheet" aria-hidden="true">
-        <div class="scheme-sheet-backdrop" id="schemeSheetBackdrop" onclick="closeSchemeSheet()"></div>
+        <div class="scheme-sheet-backdrop" id="schemeSheetBackdrop" data-action="close-sheet"></div>
         <div class="scheme-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetSchemeTitle">
-            <button type="button" class="sheet-close" onclick="closeSchemeSheet()" aria-label="Close">×</button>
+            <button type="button" class="sheet-close" id="sheetCloseBtn" data-action="close-sheet" aria-label="Close">×</button>
             <h3 id="sheetSchemeTitle" class="sheet-title"></h3>
             <p class="sheet-ministry" id="sheetMinistry"></p>
             <p class="sheet-line"><strong>Key benefit:</strong> <span id="sheetBenefit"></span></p>
@@ -296,6 +296,6 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js" defer></script>
-    <script src="app.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>

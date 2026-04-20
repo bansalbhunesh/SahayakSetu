@@ -2,26 +2,32 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from backend.config import (
     CHAT_COMPLETIONS_SECRET,
     CHAT_MODEL,
+    FRONTEND_ORIGIN,
     GROQ_API_KEY,
     MODERATION_STRICT,
     QDRANT_URL,
 )
+from backend.rate_limit import limiter
 from backend.routers import health_router, search_router, voice_router
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="SahayakSetu API")
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[FRONTEND_ORIGIN],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-User-Id", "X-SahayakSetu-Key"],
     )
 
     app.include_router(health_router.router)

@@ -9,8 +9,10 @@ services:
       - .env
     environment:
       QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - qdrant
+      - redis
     restart: unless-stopped
     healthcheck:
       test:
@@ -31,5 +33,13 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   qdrant_data:
+  redis_data:

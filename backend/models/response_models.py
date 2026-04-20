@@ -21,6 +21,11 @@ class SearchResponse(BaseModel):
     reasoning_why: str | None = None
     near_miss_text: str | None = None
     near_miss_sources: list[SchemeSource] = Field(default_factory=list)
+    session_user_id: str | None = None
+    confidence: str | None = None
+    next_step: str | None = None
+    retrieval_debug: dict | None = None
+    query_debug: dict | None = None
 
 
 

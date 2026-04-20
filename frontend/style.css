@@ -44,6 +44,14 @@ body {
     overflow-x: hidden;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
 .bg-gradient {
     position: fixed;
     inset: 0;
@@ -121,6 +129,7 @@ body {
     gap: 16px;
     flex-wrap: wrap;
     justify-content: flex-end;
+    min-width: 0;
 }
 
 .mode-toggle {
@@ -151,6 +160,8 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .nav-link {
@@ -549,6 +560,7 @@ body {
     padding: 10px 12px;
     font-family: var(--font-body);
     outline: none;
+    min-width: 0;
 }
 
 .send-btn {
@@ -1076,6 +1088,16 @@ body {
 
     .header {
         height: auto;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .main-shell {
+        padding-left: 14px;
+        padding-right: 14px;
     }
 
     .conversation-scroll {

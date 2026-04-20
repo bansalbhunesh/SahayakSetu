@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 from fastapi import HTTPException
@@ -38,6 +39,8 @@ def build_messages(
     *,
     near_miss_context: str = "",
     citation_index_block: str = "",
+    source_index_block: str = "",
+    json_mode: bool = False,
 ) -> list[dict]:
     from backend.config import LLM_HISTORY_MESSAGE_LIMIT
 
@@ -54,13 +57,34 @@ def build_messages(
             f"{citation_index_block.strip()}\n\n"
         )
 
-    user_body = (
-        f"Database Context:\n{context}\n\n"
-        f"{cite_section}"
-        f"Near-miss retrieval context:\n{near_block}\n\n"
-        f"Question: {query}"
-        f"{STRUCTURED_SUFFIX}"
-    )
+    if json_mode:
+        source_section = ""
+        if source_index_block.strip():
+            source_section = f"SOURCES:\n{source_index_block.strip()}\n\n"
+        user_body = (
+            f"TARGET_LANGUAGE: {language}\n\n"
+            f"{source_section}"
+            f"Database Context:\n{context}\n\n"
+            f"Question: {query}\n\n"
+            "Return strict JSON only with this schema:\n"
+            "{"
+            '"status":"ok|insufficient_context",'
+            '"answer":"string|null",'
+            '"claims":[{"text":"string","source_id":"S1","span":"string"}],'
+            '"next_step":"string|null",'
+            '"why_it_fits":["string"],'
+            '"near_miss":"string|null"'
+            "}\n"
+            "If insufficient, return status=insufficient_context, answer=null, claims=[]."
+        )
+    else:
+        user_body = (
+            f"Database Context:\n{context}\n\n"
+            f"{cite_section}"
+            f"Near-miss retrieval context:\n{near_block}\n\n"
+            f"Question: {query}"
+            f"{STRUCTURED_SUFFIX}"
+        )
 
     messages: list[dict] = [
         {
@@ -192,3 +216,108 @@ async def generate(messages: list[dict]) -> tuple[str, str]:
                     detail=f"Both LLMs failed. Gemini: {e}, Groq: {ge}",
                 ) from ge
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _flatten_prompt(messages: list[dict]) -> str:
+    prompt_parts = [f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n"]
+    for msg in messages:
+        if msg["role"] != "system":
+            role = "User" if msg["role"] == "user" else "Assistant"
+            prompt_parts.append(f"{role}: {msg['content']}")
+    return "\n".join(prompt_parts)
+
+
+async def generate_json(messages: list[dict]) -> tuple[dict, str]:
+    """Structured response path for staged rollout."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "enum": ["ok", "insufficient_context"]},
+            "answer": {"type": ["string", "null"]},
+            "next_step": {"type": ["string", "null"]},
+            "why_it_fits": {"type": "array", "items": {"type": "string"}},
+            "near_miss": {"type": ["string", "null"]},
+            "claims": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "source_id": {"type": "string"},
+                        "span": {"type": "string"},
+                    },
+                    "required": ["text", "source_id"],
+                },
+            },
+        },
+        "required": ["status", "answer", "claims"],
+    }
+    prompt = _flatten_prompt(messages)
+
+    def _parse_dict(raw: str) -> dict:
+        data = json.loads((raw or "").strip())
+        if not isinstance(data, dict):
+            raise ValueError("Structured response is not a JSON object")
+        return data
+
+    try:
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": schema,
+                "temperature": 0.1,
+            },
+        )
+        data = _parse_dict(response.text or "")
+        return data, CHAT_MODEL
+    except Exception as e:
+        # One deterministic retry at temperature 0 before fallback.
+        try:
+            response_retry = gemini_model.generate_content(
+                prompt,
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "response_schema": schema,
+                    "temperature": 0.0,
+                },
+            )
+            data_retry = _parse_dict(response_retry.text or "")
+            return data_retry, CHAT_MODEL
+        except Exception:
+            pass
+        if groq_client:
+            try:
+                response = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    temperature=0.1,
+                )
+                data = _parse_dict(response.choices[0].message.content or "")
+                return data, "groq-llama-3.3"
+            except Exception as ge:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Structured JSON generation failed. Gemini: {e}, Groq: {ge}",
+                ) from ge
+        raise HTTPException(status_code=500, detail=f"Structured JSON generation failed: {e}") from e
+
+
+async def rewrite_query(query: str, language: str) -> str:
+    """Query rewrite for retrieval recall. Fail-open to original query."""
+    prompt = (
+        "Rewrite this user request into a precise government-scheme search query for India.\n"
+        "Preserve intent. Add useful retrieval hints like eligibility, benefits, documents, state if present.\n"
+        "Return only the rewritten query text (no quotes, no bullets).\n\n"
+        f"Target language: {language}\n"
+        f"User query: {query}"
+    )
+    try:
+        resp = gemini_model.generate_content(prompt)
+        rewritten = (resp.text or "").strip()
+        if rewritten:
+            return rewritten.splitlines()[0].strip()
+        return query
+    except Exception:
+        return query

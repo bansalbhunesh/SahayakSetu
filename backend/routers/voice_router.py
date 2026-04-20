@@ -5,8 +5,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from slowapi.util import get_remote_address
 
 from backend.config import BACKEND_URL, CHAT_COMPLETIONS_SECRET, SIMILARITY_THRESHOLD
+from backend.rate_limit import limiter
 from backend.services import moderation_service, retrieval_service
 from backend.services.language_hint import infer_bcp47
 from backend.services.llm_service import generate
@@ -76,6 +78,12 @@ def _conversation_transcript_for_moderation(messages: list[Any], max_chars: int 
 
 
 @router.post("/vapi-webhook")
+@limiter.limit(
+    "30/minute",
+    key_func=lambda request: request.headers.get("x-vapi-signature")
+    or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    or get_remote_address(request),
+)
 async def handle_vapi_webhook(request: Request):
     webhook_body: dict[str, Any] = await request.json()
     message = webhook_body.get("message", {})
@@ -133,6 +141,7 @@ async def handle_vapi_webhook(request: Request):
 
 
 @router.post("/chat/completions")
+@limiter.limit("20/minute")
 async def handle_chat_completions(request: Request):
     _verify_chat_completions_secret(request)
     webhook_body: dict[str, Any] = await request.json()

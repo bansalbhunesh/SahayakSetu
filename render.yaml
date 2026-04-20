@@ -11,9 +11,19 @@ services:
         value: 3.12.0
       - key: CHAT_MODEL
         value: gemini-2.0-flash
+      - key: FRONTEND_ORIGIN
+        value: https://sahayaksetu.vercel.app
       # Fail-closed on moderation classifier errors (see MODERATION_STRICT in config).
       - key: MODERATION_STRICT
         value: "true"
+      - key: LLM_JSON_MODE
+        value: "true"
+      - key: HYBRID_RETRIEVAL
+        value: "true"
+      - key: HYBRID_KEYWORD_WEIGHT
+        value: "0.3"
+      - key: DEBUG_RETRIEVAL
+        value: "false"
       - sync: false
         key: QDRANT_URL
       - sync: false
@@ -24,6 +34,10 @@ services:
         key: GROQ_API_KEY
       - sync: false
         key: BACKEND_URL
+      - sync: false
+        key: REDIS_URL
+      - sync: false
+        key: SESSION_SECRET
       # Same value as Vapi custom-LLM credential (Bearer or X-SahayakSetu-Key).
       - sync: false
         key: CHAT_COMPLETIONS_SECRET
