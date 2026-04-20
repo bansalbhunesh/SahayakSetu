@@ -413,6 +413,19 @@ function wireDomEvents() {
     });
 }
 
+function wireThemeToggle() {
+    const btn = document.getElementById("themeToggle");
+    if (!btn) return;
+    const html = document.documentElement;
+    const stored = localStorage.getItem("ss-theme");
+    if (stored) html.setAttribute("data-theme", stored);
+    btn.addEventListener("click", () => {
+        const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        html.setAttribute("data-theme", next);
+        localStorage.setItem("ss-theme", next);
+    });
+}
+
 function bootstrap() {
     populateStateSelect();
     initialiseVapiSDK();
@@ -420,6 +433,7 @@ function bootstrap() {
     wireDomEvents();
     decorateSchemeCards();
     switchSidebarTab("trust");
+    wireThemeToggle();
 
     if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = () => {
