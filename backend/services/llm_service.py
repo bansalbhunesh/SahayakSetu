@@ -185,9 +185,12 @@ def compose_session_assistant_text(answer: str, why: str | None, near: str | Non
     return "\n\n".join(parts)
 
 
-def run_moderation_raw_prompt(prompt: str) -> str:
-    """Synchronous Gemini call for moderation JSON (short prompt text)."""
-    response = gemini_model.generate_content(prompt)
+async def run_moderation_raw_prompt(prompt: str) -> str:
+    """Async Gemini call for moderation JSON (short prompt text)."""
+    response = await asyncio.wait_for(
+        asyncio.to_thread(gemini_model.generate_content, prompt),
+        timeout=10.0,
+    )
     return (response.text or "").strip()
 
 

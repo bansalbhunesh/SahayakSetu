@@ -67,9 +67,9 @@ def create_app() -> FastAPI:
         print(f"   RAG: Qdrant @ {QDRANT_URL[:20]}...")
         print("   --- Policy ---")
         if MODERATION_STRICT:
-            print("   MODERATION_STRICT: on (classifier errors → block)")
+            print("   MODERATION_STRICT: on (classifier errors -> block)")
         else:
-            print("   MODERATION_STRICT: off (classifier errors → allow; use on in production)")
+            print("   MODERATION_STRICT: off (classifier errors -> allow; use on in production)")
         print(f"   ENV: {ENV}")
 
     return app

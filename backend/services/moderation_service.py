@@ -53,11 +53,11 @@ def _parse_json_best_effort(raw: str) -> dict:
         return parsed if isinstance(parsed, dict) else {}
 
 
-def _classify_intent(classifier_input: str, *, conversation: bool) -> ModerationResult:
+async def _classify_intent(classifier_input: str, *, conversation: bool) -> ModerationResult:
     prompt = _build_moderation_prompt(classifier_input, conversation=conversation)
     raw = ""
     try:
-        raw = llm_service.run_moderation_raw_prompt(prompt)
+        raw = await llm_service.run_moderation_raw_prompt(prompt)
         data = _parse_json_best_effort(raw)
         allowed = bool(data.get("allowed", True))
         category = str(data.get("category", "welfare_scheme"))
@@ -111,7 +111,7 @@ def _classify_intent(classifier_input: str, *, conversation: bool) -> Moderation
 
 
 async def check(query: str, language: str) -> ModerationResult:  # noqa: ARG001 — language reserved for future heuristics
-    return _classify_intent(query, conversation=False)
+    return await _classify_intent(query, conversation=False)
 
 
 async def check_conversation_transcript(transcript: str, language: str) -> ModerationResult:  # noqa: ARG001
@@ -119,4 +119,4 @@ async def check_conversation_transcript(transcript: str, language: str) -> Moder
     text = (transcript or "").strip()
     if not text:
         return ModerationResult(allowed=True, category="welfare_scheme", redirect_message=None)
-    return _classify_intent(text, conversation=True)
+    return await _classify_intent(text, conversation=True)
