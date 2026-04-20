@@ -43,8 +43,8 @@ def create_assistant():
     config = {
         "name": "SahayakSetu",
         "model": {
-            "provider": "openai",
-            "model": os.environ.get("CHAT_MODEL", "gpt-4o-mini"),
+            "provider": "custom-llm",
+            "url": f"{BACKEND_URL}/chat/completions",
             "messages": [
                 {
                     "role": "system",
@@ -80,7 +80,14 @@ def create_assistant():
                                 "query": {
                                     "type": "string",
                                     "description": "The user's question about government schemes",
-                                }
+                                },
+                                "language": {
+                                    "type": "string",
+                                    "description": (
+                                        "Optional BCP-47 tag for the user's language "
+                                        "(e.g. hi-IN, en-IN, kn-IN, ta-IN). Omit if unsure; the server infers from text."
+                                    ),
+                                },
                             },
                             "required": ["query"],
                         },

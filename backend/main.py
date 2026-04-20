@@ -1,189 +1,50 @@
-import os
-import json
-import time
-from typing import List, Optional
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
+"""FastAPI application factory — wiring only."""
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from qdrant_client import QdrantClient
-from openai import OpenAI
-import google.generativeai as genai
-from dotenv import load_dotenv
 
-# Load environment
-load_dotenv()
-
-# Audit v5 Restoration: Startup Guards & Env Sync
-QDRANT_URL = os.getenv("QDRANT_URL")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-BACKEND_URL = os.getenv("BACKEND_URL", "https://sahayaksetu-backend-3kxl.onrender.com")
-CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
-
-if not QDRANT_URL or not GEMINI_API_KEY:
-    raise RuntimeError(f"Missing required env vars. QDRANT_URL={'set' if QDRANT_URL else 'MISSING'}, GEMINI_API_KEY={'set' if GEMINI_API_KEY else 'MISSING'}")
-
-# Initialize Clients
-qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-qdrant.set_model("BAAI/bge-small-en-v1.5")
-
-genai.configure(api_key=GEMINI_API_KEY)
-llm_model = genai.GenerativeModel(CHAT_MODEL)
-
-groq_client = None
-if GROQ_API_KEY:
-    groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
-
-# Audit v5 Restoration: Protected In-Memory Store
-conversation_store = {}
-
-app = FastAPI(title="SahayakSetu API")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+from backend.config import (
+    CHAT_COMPLETIONS_SECRET,
+    CHAT_MODEL,
+    GROQ_API_KEY,
+    MODERATION_STRICT,
+    QDRANT_URL,
 )
+from backend.routers import health_router, search_router, voice_router
 
-class SearchQuery(BaseModel):
-    query: str
-    user_id: Optional[str] = "anonymous"
-    language: Optional[str] = "hi-IN"
 
-SYSTEM_PROMPT = """# SahayakSetu (सहायक सेतु) — Pan-India Multilingual Expertise
-You are SahayakSetu, the official AI bridge for Indian welfare. You handle language barriers by providing clear, empathy-driven information about government schemes.
+def create_app() -> FastAPI:
+    app = FastAPI(title="SahayakSetu API")
 
-## 🛠️ Logic Rules:
-1. **Strict Script Mirroring**: ALWAYS respond in the EXACT language and script specified by the frontend 'Target Language'. If Target Language is English, respond in English. If it is Hindi/Devanagari, respond in Hindi.
-2. **Translation Bridge**: Act as a fluent translator. Convert complex English scheme data into the 'Target Language' with 100% accuracy.
-3. **Actionable Roadmap**: Every answer MUST conclude with a "Next Step" (which office to visit or what document to carry).
-4. **Context Lockdown**: Treat context as "Absolute Truth". Never hallucinate details not found in the search results.
-"""
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-@app.on_event("startup")
-async def startup_event():
-    print(f"\n[STARTUP] SahayakSetu - Intelligence Activated")
-    print(f"   Primary: {CHAT_MODEL}")
-    print(f"   Fallback: {'Groq-Llama-3.3' if groq_client else 'None'}")
-    print(f"   RAG: Qdrant @ {QDRANT_URL[:20]}...")
+    app.include_router(health_router.router)
+    app.include_router(search_router.router)
+    app.include_router(voice_router.router)
 
-@app.get("/health")
-def health():
-    return {"status": "online", "model": CHAT_MODEL, "threshold": 0.2}
+    @app.on_event("startup")
+    async def startup_event():
+        print("\n[STARTUP] SahayakSetu - Intelligence Activated")
+        print(f"   Primary: {CHAT_MODEL}")
+        print(f"   Fallback: {'Groq-Llama-3.3' if GROQ_API_KEY else 'None'}")
+        print(f"   RAG: Qdrant @ {QDRANT_URL[:20]}...")
+        print("   --- Policy ---")
+        if MODERATION_STRICT:
+            print("   MODERATION_STRICT: on (classifier errors → block)")
+        else:
+            print("   MODERATION_STRICT: off (classifier errors → allow; use on in production)")
+        if CHAT_COMPLETIONS_SECRET:
+            print("   /chat/completions: auth enabled (Bearer or X-SahayakSetu-Key)")
+        else:
+            print("   /chat/completions: auth disabled — set CHAT_COMPLETIONS_SECRET in production")
 
-@app.get("/")
-def read_root():
-    return {"status": "SahayakSetu Backend Online", "model": CHAT_MODEL}
+    return app
 
-async def generate_response(messages: list):
-    """Audit v5 Restoration: High-Fidelity Exception Logging."""
-    try:
-        prompt_parts = [f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n"]
-        for msg in messages:
-            if msg["role"] != "system":
-                role = "User" if msg["role"] == "user" else "Assistant"
-                prompt_parts.append(f"{role}: {msg['content']}")
-        
-        full_prompt = "\n".join(prompt_parts)
-        response = llm_model.generate_content(full_prompt)
-        return response.text, CHAT_MODEL
-    except Exception as e:
-        print(f"[WARNING] Primary LLM {CHAT_MODEL} failed: {e}")
-        if groq_client:
-            try:
-                response = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=messages,
-                    temperature=0.7
-                )
-                return response.choices[0].message.content, "groq-llama-3.3"
-            except Exception as ge:
-                print(f"[ERROR] Groq fallback also failed: {ge}")
-                raise HTTPException(status_code=500, detail=f"Both LLMs failed. Gemini: {e}, Groq: {ge}")
-        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/search")
-async def api_search(data: SearchQuery):
-    try:
-        search_results = qdrant.query(collection_name="sahayak_schemes", query_text=data.query, limit=3)
-        relevant = [p for p in search_results if p.score > 0.2]
-        context = "\n\n".join([p.document for p in relevant])
-        
-        # Memory Protection: Fetch history
-        history = conversation_store.get(data.user_id, [])
-        messages = [{"role": "system", "content": f"{SYSTEM_PROMPT}\n\nTARGET RESPONSE LANGUAGE: {data.language}"}]
-        messages.extend(history[-4:])
-        messages.append({"role": "user", "content": f"Database Context:\n{context}\n\nQuestion: {data.query}"})
-        
-        text, provider = await generate_response(messages)
-        
-        # Memory Protection: Truncate history to avoid RAM bloat
-        history.append({"role": "user", "content": data.query})
-        history.append({"role": "assistant", "content": text})
-        conversation_store[data.user_id] = history[-20:] # Keep last 10 exchanges
-        
-        # Memory Protection: Clear oldest entries if store is too large
-        if len(conversation_store) > 500:
-            for key in list(conversation_store.keys())[:100]:
-                del conversation_store[key]
-        
-        return {
-            "answer": text,
-            "provider": provider,
-            "sources": [{"scheme": p.metadata.get("scheme", "Scheme"), "score": p.score} for p in relevant]
-        }
-    except Exception as e:
-        print(f"API Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/vapi-webhook")
-async def vapi_webhook(request: Request):
-    body = await request.json()
-    message = body.get("message", {})
-    
-    if message.get("type") == "assistant-request":
-        return JSONResponse(content={
-            "assistant": {
-                "model": {"provider": "custom-llm", "url": f"{BACKEND_URL}/chat/completions"},
-                "voice": {"provider": "azure", "voiceId": "hi-IN-SwaraNeural"},
-                "firstMessage": "Namaste! Main SahayakSetu hoon. Aap kisi bhi sarkari yojna ke baare mein pooch sakte hain."
-            }
-        })
-    
-    if message.get("type") == "tool-calls":
-        tool_calls = message.get("toolCalls", [])
-        results = []
-        for call in tool_calls:
-            if call["function"]["name"] == "search_schemes":
-                args = json.loads(call["function"]["arguments"])
-                search_results = qdrant.query(collection_name="sahayak_schemes", query_text=args.get("query"), limit=3)
-                context = "\n".join([p.document for p in search_results if p.score > 0.2])
-                results.append({"toolCallId": call["id"], "result": context or "Mujhe details nahi mili."})
-        return JSONResponse(content={"results": results})
-    
-    return JSONResponse(content={})
-
-@app.post("/chat/completions")
-async def chat_completions(request: Request):
-    body = await request.json()
-    messages = body.get("messages", [])
-    text, provider = await generate_response(messages)
-    return {
-        "id": f"chatcmpl-{int(time.time())}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": provider,
-        "choices": [{
-            "index": 0,
-            "message": {"role": "assistant", "content": text},
-            "finish_reason": "stop"
-        }]
-    }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+app = create_app()
