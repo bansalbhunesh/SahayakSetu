@@ -23,6 +23,7 @@ ALLOWED_ORIGINS = [
     for origin in os.getenv("ALLOWED_ORIGINS", FRONTEND_ORIGIN).split(",")
     if origin.strip()
 ]
+ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"^https://[a-z0-9-]+\.vercel\.app$").strip()
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
 VAPI_WEBHOOK_SECRET = os.getenv("VAPI_WEBHOOK_SECRET", "").strip()
 

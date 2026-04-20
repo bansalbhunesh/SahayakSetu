@@ -20,15 +20,14 @@ def _user_key(request: Request) -> str:
 
 
 def _safe_storage_uri() -> str:
-    raw = (os.getenv("REDIS_URL") or "").strip()
+    # Keep rate limiting resilient: default to in-memory storage unless an explicit
+    # limiter storage URI is provided. This avoids request-time 500s when shared
+    # Redis env vars are malformed or temporarily unavailable.
+    raw = (os.getenv("RATE_LIMIT_STORAGE_URI") or "").strip()
     if not raw:
         return "memory://"
     if raw.startswith(("redis://", "rediss://", "memory://")):
         return raw
-    # Handle accidental pastes like: redis-cli --tls -u redis://...
-    match = re.search(r"(rediss?://\S+)", raw)
-    if match:
-        return match.group(1)
     return "memory://"
 
 

@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.config import (
     ALLOWED_ORIGINS,
+    ALLOWED_ORIGIN_REGEX,
     CHAT_MODEL,
     ENV,
     FRONTEND_ORIGIN,
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=ALLOWED_ORIGINS or [FRONTEND_ORIGIN],
+        allow_origin_regex=ALLOWED_ORIGIN_REGEX or None,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization", "X-User-Id"],
