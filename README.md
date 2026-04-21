@@ -70,27 +70,194 @@ Judges often ask: *"How is this different from Google Voice Search?"*
 
 ## 🚀 Setup & Installation
 
-1. **Clone & Explore**
-   ```bash
-   git clone https://github.com/bansalbhunesh/SahayakSetu.git
-   cd SahayakSetu
-   ```
-
-2. **Configure Environment** (`.env`)
-   ```env
-   GEMINI_API_KEY=your_key
-   GROQ_API_KEY=your_key
-   QDRANT_URL=your_cluster_url
-   QDRANT_API_KEY=your_key
-   BACKEND_URL=https://your-app.onrender.com
-   ```
-
-3. **Install & Ingest Knowledge** 
-   ```bash
-   pip install -r backend/requirements.txt
-   python scripts/ingest.py
-   python -m uvicorn backend.main:app --host 0.0.0.0
-   ```
+Choose **Option A** (Docker — recommended, zero dependency headaches) or **Option B** (bare-metal Python).
 
 ---
+
+### Option A — Docker Compose (Recommended)
+
+Docker bundles the backend, Qdrant vector DB, and Redis cache together. You only need Docker Desktop installed.
+
+#### 1. Clone the repo
+```bash
+git clone https://github.com/bansalbhunesh/SahayakSetu.git
+cd SahayakSetu
+```
+
+#### 2. Create your `.env` file
+Copy the template and fill in your API keys:
+```bash
+cp .env.example .env   # or manually create .env
+```
+
+Minimum required keys:
+```env
+# At least one LLM key is required (Gemini preferred, Groq as fallback)
+GEMINI_API_KEY=your_google_ai_studio_key
+GROQ_API_KEY=your_groq_key          # fallback if Gemini quota runs out
+
+# Qdrant — use the Docker URL below when running via docker-compose
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=                     # leave blank for local Docker Qdrant
+
+# App settings
+ENV=development
+MODERATION_STRICT=false
+SESSION_SECRET=any_random_string_here
+REDIS_URL=redis://localhost:6379/0
+FRONTEND_ORIGIN=http://127.0.0.1:5500
+```
+
+> **Get API keys:**
+> - Gemini: [aistudio.google.com/apikey](https://aistudio.google.com/apikey) (free tier available)
+> - Groq: [console.groq.com](https://console.groq.com) (free tier, very fast)
+
+#### 3. Start all services
+```bash
+docker-compose up -d
+```
+This starts three containers: `backend` (port 8000), `qdrant` (port 6333), `redis` (port 6379).
+
+Wait ~15 seconds for the backend to finish loading the embedding model, then verify:
+```bash
+curl http://localhost:8000/health
+# Expected: {"status":"online","model":"gemini-2.0-flash",...}
+```
+
+#### 4. Ingest the knowledge base into Qdrant
+Run this once (and re-run whenever you update `scripts/data/schemes.json`):
+```bash
+QDRANT_URL=http://localhost:6333 QDRANT_API_KEY= python scripts/ingest.py
+```
+You should see: `[SUCCESS] ... Repository Ready!`
+
+#### 5. Open the frontend
+Open `frontend/index.html` directly in your browser, or use a live server (e.g. VS Code Live Server extension on port 5500). Make sure `FRONTEND_ORIGIN` in `.env` matches whatever address you use.
+
+#### 6. Test the API (optional)
+```bash
+curl -s -X POST http://localhost:8000/api/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "PM Kisan benefits eligibility", "language": "en"}'
+```
+
+---
+
+### Option B — Bare-Metal Python (No Docker)
+
+Use this if you prefer to run without Docker. You'll need Python 3.12+ and either a local Qdrant binary or a Qdrant Cloud account.
+
+#### 1. Clone & install dependencies
+```bash
+git clone https://github.com/bansalbhunesh/SahayakSetu.git
+cd SahayakSetu
+pip install -r backend/requirements.txt
+```
+
+#### 2. Set up Qdrant
+- **Cloud (easiest):** Create a free cluster at [cloud.qdrant.io](https://cloud.qdrant.io). Copy the cluster URL and API key.
+- **Local binary:** Download from [qdrant.tech/documentation/guides/installation](https://qdrant.tech/documentation/guides/installation/) and run `./qdrant` (listens on `localhost:6333`).
+
+#### 3. Create your `.env` file
+```env
+GEMINI_API_KEY=your_google_ai_studio_key
+GROQ_API_KEY=your_groq_key
+
+# For Qdrant Cloud:
+QDRANT_URL=https://your-cluster.qdrant.io
+QDRANT_API_KEY=your_qdrant_api_key
+
+# For local Qdrant binary:
+# QDRANT_URL=http://localhost:6333
+# QDRANT_API_KEY=
+
+ENV=development
+MODERATION_STRICT=false
+SESSION_SECRET=any_random_string_here
+REDIS_URL=redis://localhost:6379/0   # optional; remove if no Redis
+FRONTEND_ORIGIN=http://127.0.0.1:5500
+```
+
+#### 4. Ingest the knowledge base
+```bash
+python scripts/ingest.py
+```
+
+#### 5. Start the backend
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+#### 6. Open the frontend
+Open `frontend/index.html` in your browser or via VS Code Live Server.
+
+---
+
+### Re-ingesting after adding new schemes
+
+Whenever you edit `scripts/data/schemes.json` (to add or update schemes), re-run the ingest script:
+
+```bash
+# Docker:
+QDRANT_URL=http://localhost:6333 QDRANT_API_KEY= python scripts/ingest.py
+
+# Bare-metal (keys already in .env):
+python scripts/ingest.py
+```
+
+Then flush the Redis answer cache so stale responses don't persist:
+```bash
+# Docker:
+docker exec sahayaksetu-redis-1 redis-cli FLUSHALL
+
+# Bare-metal:
+redis-cli FLUSHALL
+```
+
+---
+
+### Stopping & restarting
+
+```bash
+# Stop all containers
+docker-compose down
+
+# Start again (skips image rebuild if nothing changed)
+docker-compose up -d
+
+# Force rebuild after code changes
+docker-compose up -d --build
+```
+
+---
+
+### Environment variables reference
+
+| Variable | Required | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | Yes* | Google AI Studio key for Gemini 2.0 Flash |
+| `GROQ_API_KEY` | Yes* | Groq key for Llama 3.3 70B fallback |
+| `QDRANT_URL` | Yes | `http://qdrant:6333` (Docker) or Qdrant Cloud URL |
+| `QDRANT_API_KEY` | No | Leave blank for local Docker Qdrant |
+| `REDIS_URL` | Yes | `redis://redis:6379/0` (Docker) or local Redis |
+| `SESSION_SECRET` | Yes | Any random string for session signing |
+| `ENV` | No | `development` or `production` |
+| `MODERATION_STRICT` | No | `false` (dev) / `true` (prod — fails closed on LLM errors) |
+| `FRONTEND_ORIGIN` | No | URL of frontend for CORS (e.g. `http://127.0.0.1:5500`) |
+| `VAPI_API_KEY` | No | Only needed for voice call feature via Vapi.ai |
+| `VAPI_ASSISTANT_ID` | No | Only needed for voice call feature |
+| `VAPI_WEBHOOK_SECRET` | No | Validates incoming Vapi webhook signatures |
+
+*At least one of `GEMINI_API_KEY` or `GROQ_API_KEY` is required.
+
+---
+
+### Deploying to production
+
+- **Backend → Render:** Push to `main`; Render auto-deploys via `render.yaml`. Set all env vars in the Render dashboard. Set `MODERATION_STRICT=true` and `QDRANT_URL` to your Qdrant Cloud URL.
+- **Frontend → Vercel:** Run `vercel --prod` from the repo root. `vercel.json` handles all routing.
+- After deploying backend, update `BACKEND_URL` in your `.env` and re-deploy frontend so it points to the live API.
+
+---
+
 *Built for Hackblr 2026 — Bridging the gap for a Digital, Inclusive India.* 🇮🇳🏆
