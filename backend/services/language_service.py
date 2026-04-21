@@ -22,7 +22,6 @@ _HINGLISH_TOKEN_MAP: Final[tuple[tuple[str, str], ...]] = (
     (" kisan ", " किसान "),
     (" kisanon ", " किसानों "),
     (" aavedan ", " आवेदन "),
-    (" aavedan ", " आवेदन "),
     (" darj ", " दर्ज "),
     (" suchna ", " सूचना "),
     (" yogyata ", " योग्यता "),

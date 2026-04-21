@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import HTTPException
@@ -135,7 +136,11 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
         rewritten_query = rewritten_base
         if len(rewritten_base.split()) <= 5 and not prefer_original_retrieval:
             rewritten_query = await llm_service.rewrite_query(rewritten_base, search_request.language)
-        retrieval_query = rewritten_base if prefer_original_retrieval else rewritten_query
+        # When prefer_original is True (query names a specific scheme in Latin script),
+        # use the un-normalized original so catalog keyword search matches English documents.
+        # Hinglish-normalized form has Devanagari tokens ("किसान") that won't match
+        # Latin "kisan" in the English catalog — vector search handles multilingual fine.
+        retrieval_query = original_query if prefer_original_retrieval else rewritten_query
         query_debug = {
             "original": original_query,
             "hinglish_normalized": normalized_surface
@@ -204,8 +209,16 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
                 query_debug=query_debug,
             )
 
+        # Catalog fallback (no Qdrant) returns keyword scores which are not comparable
+        # to vector scores. Detect this by checking that all results have vector_score=0.
+        is_catalog_fallback = bool(relevant_results) and all(
+            r.vector_score == 0.0 for r in relevant_results
+        )
+        effective_soft_floor = 0.05 if is_catalog_fallback else RETRIEVAL_SOFT_FLOOR
+        effective_hard_floor = 0.10 if is_catalog_fallback else RETRIEVAL_HARD_FLOOR
+
         score_spread = top_score - min((r.score for r in relevant_results), default=top_score)
-        if score_spread < 0.05 and top_score < RETRIEVAL_HARD_FLOOR:
+        if score_spread < 0.05 and top_score < effective_hard_floor:
             return SearchResponse(
                 answer=guided_answer,
                 provider="retrieval-ambiguous",
@@ -222,7 +235,7 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
                 query_debug=query_debug,
             )
 
-        if top_score < RETRIEVAL_SOFT_FLOOR:
+        if top_score < effective_soft_floor:
             return SearchResponse(
                 answer=guided_answer,
                 provider="retrieval-soft-gate",
@@ -270,7 +283,9 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
         if LLM_JSON_MODE:
             try:
                 structured, provider = await llm_service.generate_json(messages)
-                verified = grounding_service.verify(structured, relevant_results, fallback)
+                verified = await asyncio.to_thread(
+                    grounding_service.verify, structured, relevant_results, fallback
+                )
                 answer_main = verified.answer or fallback
                 cleaned = [x.strip() for x in verified.why_it_fits if x and x.strip()]
                 reasoning_why = "\n".join(f"- {x}" for x in cleaned) if cleaned else None

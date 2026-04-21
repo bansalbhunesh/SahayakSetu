@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,8 +28,24 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    qdrant_preview = (QDRANT_URL or "")[:20] + ("..." if len(QDRANT_URL or "") > 20 else "")
+    print("\n[STARTUP] SahayakSetu - Intelligence Activated")
+    print(f"   Primary: {CHAT_MODEL}")
+    print(f"   Fallback: {'Groq-Llama-3.3' if GROQ_API_KEY else 'None'}")
+    print(f"   RAG: Qdrant @ {qdrant_preview}")
+    print("   --- Policy ---")
+    if MODERATION_STRICT:
+        print("   MODERATION_STRICT: on (classifier errors -> block)")
+    else:
+        print("   MODERATION_STRICT: off (classifier errors -> allow; use on in production)")
+    print(f"   ENV: {ENV}")
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="SahayakSetu API")
+    app = FastAPI(title="SahayakSetu API", lifespan=_lifespan)
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -59,19 +76,6 @@ def create_app() -> FastAPI:
         ref = uuid.uuid4().hex[:8]
         logger.exception("unhandled_exception", extra={"path": request.url.path, "ref": ref})
         return JSONResponse(status_code=500, content={"detail": f"Internal error. Reference: {ref}"})
-
-    @app.on_event("startup")
-    async def startup_event():
-        print("\n[STARTUP] SahayakSetu - Intelligence Activated")
-        print(f"   Primary: {CHAT_MODEL}")
-        print(f"   Fallback: {'Groq-Llama-3.3' if GROQ_API_KEY else 'None'}")
-        print(f"   RAG: Qdrant @ {QDRANT_URL[:20]}...")
-        print("   --- Policy ---")
-        if MODERATION_STRICT:
-            print("   MODERATION_STRICT: on (classifier errors -> block)")
-        else:
-            print("   MODERATION_STRICT: off (classifier errors -> allow; use on in production)")
-        print(f"   ENV: {ENV}")
 
     return app
 

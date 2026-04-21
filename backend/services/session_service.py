@@ -124,7 +124,7 @@ def _redis_safe(fail_default):
             try:
                 return await fn(*args, **kwargs)
             except Exception:
-                logger.error("redis_unavailable", extra={"fn": fn.__name__}, exc_info=True)
+                logger.warning("redis_unavailable", extra={"fn": fn.__name__}, exc_info=True)
                 if fail_default is _RAISE:
                     raise
                 return fail_default

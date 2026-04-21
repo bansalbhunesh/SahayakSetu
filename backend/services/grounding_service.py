@@ -48,7 +48,16 @@ _STOPWORDS = {"the", "a", "an", "is", "are", "of", "to", "for", "in", "and", "or
 _NUMBER_RE = re.compile(r"\b\d[\d,./-]*\b")
 _URL_RE = re.compile(r"https?://\S+")
 _DATE_RE = re.compile(r"\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4})\b")
-_EMBEDDER = TextEmbedding("BAAI/bge-small-en-v1.5")
+
+# Lazy-load the embedder on first use so startup is not blocked by a model download.
+_EMBEDDER: TextEmbedding | None = None
+
+
+def _get_embedder() -> TextEmbedding:
+    global _EMBEDDER
+    if _EMBEDDER is None:
+        _EMBEDDER = TextEmbedding("BAAI/bge-small-en-v1.5")
+    return _EMBEDDER
 
 
 def _tokens(text: str) -> set[str]:
@@ -68,7 +77,7 @@ def _token_overlap(claim: str, source: str) -> float:
 
 
 def _embed(text: str) -> list[float]:
-    return list(next(_EMBEDDER.embed([text])))
+    return list(next(_get_embedder().embed([text])))
 
 
 def _cosine(a: Iterable[float], b: Iterable[float]) -> float:

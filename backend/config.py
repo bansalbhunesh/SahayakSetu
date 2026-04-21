@@ -24,6 +24,21 @@ ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"^https://[a-z0-9-]+\.vercel\.app$").strip()
+
+# In development, automatically permit any localhost origin so the frontend
+# served by a local file server or dev server can reach the API without CORS errors.
+if ENV == "development":
+    _local_origins = [
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://localhost:8080",
+    ]
+    for _o in _local_origins:
+        if _o not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(_o)
+    ALLOWED_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
 VAPI_WEBHOOK_SECRET = os.getenv("VAPI_WEBHOOK_SECRET", "").strip()
 
