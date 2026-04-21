@@ -338,7 +338,7 @@ function renderEligibilityHintsPanel(hints) {
     panel.className = "eligibility-hints-panel";
     const h = document.createElement("div");
     h.className = "eligibility-hints-title";
-    h.textContent = "Eligibility snapshot (heuristic — confirm on official portals)";
+    h.textContent = "Quick eligibility check (best-effort)";
     panel.appendChild(h);
     hints.forEach((row) => {
         const line = document.createElement("div");
@@ -360,7 +360,7 @@ function appendAssistantSourceLinks(container, sources, headingText) {
     block.className = "source-links-block";
     const heading = document.createElement("div");
     heading.className = "source-links-heading";
-    heading.textContent = headingText || "Official portals (verified)";
+    heading.textContent = headingText || "Where this answer comes from";
     block.appendChild(heading);
 
     rows.forEach((s) => {
@@ -478,7 +478,7 @@ export function appendMessageToChat(role, content, options = {}) {
         panel.className = "explain-panel";
         const h = document.createElement("div");
         h.className = "explain-panel-title";
-        h.textContent = "Why this fits you";
+        h.textContent = "How this answer was chosen";
         panel.appendChild(h);
         const body = document.createElement("div");
         body.className = "explain-panel-body";
@@ -494,7 +494,7 @@ export function appendMessageToChat(role, content, options = {}) {
         panel.className = "near-miss-panel";
         const h = document.createElement("div");
         h.className = "near-miss-panel-title";
-        h.textContent = "Almost eligible";
+        h.textContent = "Possible mismatch (what to check next)";
         panel.appendChild(h);
         if (nearText && nearText.trim()) {
             const body = document.createElement("div");
@@ -503,7 +503,7 @@ export function appendMessageToChat(role, content, options = {}) {
             panel.appendChild(body);
         }
         if (nearSrc.length) {
-            appendAssistantSourceLinks(panel, nearSrc, "Reference (lower match)");
+            appendAssistantSourceLinks(panel, nearSrc, "Related references (lower match)");
         }
         wrap.appendChild(panel);
     }
@@ -511,7 +511,7 @@ export function appendMessageToChat(role, content, options = {}) {
     const eligPanel = renderEligibilityHintsPanel(options.eligibilityHints);
     if (eligPanel) wrap.appendChild(eligPanel);
 
-    appendAssistantSourceLinks(wrap, options.sources || [], "Official portals (verified)");
+    appendAssistantSourceLinks(wrap, options.sources || [], "Where this answer comes from");
     const next = renderNextStepPanel(options.nextStep);
     if (next) wrap.appendChild(next);
     const plan = renderPlanPanel(options.plan);

@@ -172,6 +172,16 @@ def _sanitize_steps(
     return unique[:_MAX_STEPS]
 
 
+_VALID_VERDICTS = {"eligible", "likely_eligible", "likely_ineligible", "unknown"}
+
+def _coerce_raw_plan(raw: dict) -> dict:
+    """Normalise LLM output before Pydantic sees it — coerce unknown verdict values."""
+    for row in raw.get("eligibility") or []:
+        if isinstance(row, dict) and row.get("verdict") not in _VALID_VERDICTS:
+            row["verdict"] = "unknown"
+    return raw
+
+
 def _reconcile_status(plan: AgentPlan, profile: UserProfile) -> None:
     missing = slots_missing(profile, plan.eligibility)
     if missing and plan.status == "plan_ready":
@@ -210,7 +220,7 @@ async def build_plan(
         return _insufficient(lang)
 
     try:
-        plan = AgentPlan.model_validate(raw)
+        plan = AgentPlan.model_validate(_coerce_raw_plan(raw))
     except ValidationError as e:
         logger.info("agent_plan_validation_failed", extra={"errors": str(e)[:300]})
         return _insufficient(lang)

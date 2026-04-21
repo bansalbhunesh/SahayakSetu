@@ -990,10 +990,11 @@ select:focus-visible {
 }
 
 .conversation-shell-hint {
-    font-size: 0.72rem;
-    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    color: #b6a99a;
     text-transform: uppercase;
     letter-spacing: 0.1em;
+    font-weight: 600;
 }
 
 .conversation-scroll {
@@ -1027,8 +1028,8 @@ select:focus-visible {
     max-width: 88%;
     padding: 14px 16px;
     border-radius: 20px;
-    font-size: 0.93rem;
-    line-height: 1.55;
+    font-size: 0.95rem;
+    line-height: 1.62;
     align-self: flex-start;
     border: 1px solid transparent;
     box-shadow: var(--shadow-sm);
@@ -1105,8 +1106,8 @@ select:focus-visible {
     padding: 12px 14px;
     border-radius: var(--radius-md);
     border: 1px solid var(--color-border);
-    font-size: 0.88rem;
-    line-height: 1.45;
+    font-size: 0.9rem;
+    line-height: 1.5;
     box-shadow: var(--shadow-sm);
 }
 
@@ -1128,7 +1129,7 @@ select:focus-visible {
 .explain-panel-title,
 .near-miss-panel-title,
 .eligibility-hints-title {
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -1815,11 +1816,26 @@ select:focus-visible {
 }
 
 .source-links-heading {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--color-text-muted);
+    color: #c9b8a6;
     margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.source-links-row {
+    padding: 8px 0;
+    border-top: 1px dashed rgba(234, 122, 31, 0.22);
+}
+
+.source-links-row:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.source-links-row:last-of-type {
+    padding-bottom: 0;
 }
 
 .source-links-row {

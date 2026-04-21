@@ -8,8 +8,8 @@ export const BACKEND_URL =
 
 export const SESSION_USER_ID_KEY = "sahayak_session_user_id";
 
-/** Web Speech: continuous listen + interim captions (Alexa-style). */
-export const USE_CONTINUOUS_VOICE = true;
+/** Web Speech: single-utterance mode — stops after user finishes speaking. */
+export const USE_CONTINUOUS_VOICE = false;
 
 export const INDIAN_STATES = [
     "Andhra Pradesh",
