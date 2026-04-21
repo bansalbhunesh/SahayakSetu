@@ -402,8 +402,8 @@ AGENT_PLAN_RESPONSE_SCHEMA: dict = {
                 "properties": {
                     "order": {"type": "integer"},
                     "action": {"type": "string"},
-                    "where": {"type": ["string", "null"]},
-                    "estimated_time": {"type": ["string", "null"]},
+                    "where": {"type": "string"},
+                    "estimated_time": {"type": "string"},
                 },
                 "required": ["order", "action"],
             },
