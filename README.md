@@ -274,7 +274,7 @@ npm run test:e2e
 
 Tests serve the static `frontend/` folder and **mock** `POST /api/search`, so no local backend is required.
 
-**Streaming:** `POST /api/search/stream` returns **`application/x-ndjson`**: first line `{"type":"meta","trace_id":"..."}`, second line `{"type":"complete","data":{...same shape as /api/search...}}`. This is a transport wrapper for now (no token-by-token deltas yet).
+**Streaming:** `POST /api/search/stream` returns **`application/x-ndjson`**: first line `{"type":"meta","trace_id":"..."}`; while the LLM runs, zero or more lines `{"type":"token","text":"..."}` (Gemini or Groq streaming); final line `{"type":"complete","data":{...same shape as /api/search...}}`. Cache hits skip the LLM and emit only `meta` then `complete`. Errors use `{"type":"error","status_code":...,"detail":...}`.
 
 ---
 

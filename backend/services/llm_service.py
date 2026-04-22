@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import queue
 import re
+import threading
+from collections.abc import Awaitable, Callable
 
 from backend.config import (
     CHAT_MODEL,
@@ -290,6 +293,118 @@ async def generate(messages: list[dict]) -> tuple[str, str]:
             logger.warning("llm_fallback_failed", extra={"error": str(ge)[:200]})
     logger.error("llm_all_providers_failed")
     return _DEGRADED_CHAT, "unavailable"
+
+
+async def _pump_text_queue(
+    q: queue.Queue[str | BaseException | None],
+    on_token: Callable[[str], Awaitable[None]],
+    *,
+    timeout_s: float,
+) -> str:
+    """Drain a worker thread queue until None; invoke on_token for each text fragment."""
+    parts: list[str] = []
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + float(timeout_s)
+    while True:
+        remaining = max(0.01, deadline - loop.time())
+        try:
+            item = await asyncio.wait_for(asyncio.to_thread(q.get), timeout=remaining)
+        except asyncio.TimeoutError:
+            raise TimeoutError("llm_stream_timeout") from None
+        if item is None:
+            break
+        if isinstance(item, BaseException):
+            raise item
+        parts.append(item)
+        await on_token(item)
+    return "".join(parts)
+
+
+async def generate_stream(
+    messages: list[dict[str, str]],
+    on_token: Callable[[str], Awaitable[None]],
+) -> tuple[str, str]:
+    """Stream chat completion from Gemini (primary) or Groq; tokens via ``on_token``."""
+
+    async def _gemini_stream_once() -> tuple[str, str]:
+        if gemini_model is None:
+            raise RuntimeError("gemini_unconfigured")
+        full_prompt = _flatten_prompt(messages)
+        q: queue.Queue[str | BaseException | None] = queue.Queue()
+
+        def worker() -> None:
+            try:
+                stream = gemini_model.generate_content_stream(full_prompt)
+                for chunk in stream:
+                    text = getattr(chunk, "text", None) or ""
+                    if text:
+                        q.put(text)
+            except BaseException as exc:
+                q.put(exc)
+            finally:
+                q.put(None)
+
+        threading.Thread(target=worker, daemon=True).start()
+        text = (await _pump_text_queue(q, on_token, timeout_s=LLM_CALL_TIMEOUT_S)).strip()
+        return text, CHAT_MODEL
+
+    try:
+        return await async_retry(
+            lambda: _gemini_stream_once(),
+            attempts=API_RETRY_ATTEMPTS,
+            base_delay=API_RETRY_BASE_DELAY_S,
+            max_delay=API_RETRY_MAX_DELAY_S,
+            step="llm_stream_gemini",
+        )
+    except Exception as e:
+        logger.warning(
+            "primary_llm_stream_failed",
+            extra={"provider": CHAT_MODEL, "error": str(e)[:200]},
+        )
+    if groq_client:
+        try:
+
+            async def _groq_stream_once() -> tuple[str, str]:
+                msgs = _trim_messages_for_budget(messages)
+                q2: queue.Queue[str | BaseException | None] = queue.Queue()
+
+                def groq_worker() -> None:
+                    try:
+                        stream = groq_client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=msgs,
+                            temperature=0.1,
+                            stream=True,
+                        )
+                        for chunk in stream:
+                            if not chunk.choices:
+                                continue
+                            delta = chunk.choices[0].delta
+                            piece = getattr(delta, "content", None) if delta else None
+                            if piece:
+                                q2.put(piece)
+                    except BaseException as exc:
+                        q2.put(exc)
+                    finally:
+                        q2.put(None)
+
+                threading.Thread(target=groq_worker, daemon=True).start()
+                text = (await _pump_text_queue(q2, on_token, timeout_s=LLM_CALL_TIMEOUT_S)).strip()
+                return text, "groq-llama-3.3"
+
+            return await async_retry(
+                lambda: _groq_stream_once(),
+                attempts=API_RETRY_ATTEMPTS,
+                base_delay=API_RETRY_BASE_DELAY_S,
+                max_delay=API_RETRY_MAX_DELAY_S,
+                step="llm_stream_groq",
+            )
+        except Exception as ge:
+            logger.warning("llm_stream_fallback_failed", extra={"error": str(ge)[:200]})
+    logger.error("llm_stream_all_providers_failed")
+    degraded = _DEGRADED_CHAT
+    await on_token(degraded)
+    return degraded, "unavailable"
 
 
 def _insufficient_json_payload() -> dict:

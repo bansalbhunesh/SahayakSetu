@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from fastapi import APIRouter, HTTPException, Request
@@ -21,20 +22,40 @@ async def handle_search(request: Request, search_request: SearchRequest) -> Sear
         raise
 
 
+def _ndjson_line(obj: dict) -> bytes:
+    return (json.dumps(obj, ensure_ascii=False, default=str) + "\n").encode("utf-8")
+
+
 async def _search_ndjson_stream(search_request: SearchRequest):
-    """Minimal NDJSON stream: meta line + one complete payload (token streaming TBD)."""
+    """NDJSON: meta, optional ``token`` lines during LLM generation, then ``complete`` or ``error``."""
     meta = {"type": "meta", "trace_id": trace_id_var.get()}
-    yield (json.dumps(meta, ensure_ascii=False) + "\n").encode("utf-8")
+    yield _ndjson_line(meta)
+    q: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    async def emit(ev: dict[str, object]) -> None:
+        await q.put(ev)
+
+    task = asyncio.create_task(execute_search(search_request, stream_emit=emit))
+    while True:
+        if task.done():
+            while True:
+                try:
+                    ev = q.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                yield _ndjson_line(ev)
+            break
+        try:
+            ev = await asyncio.wait_for(q.get(), timeout=0.1)
+        except asyncio.TimeoutError:
+            continue
+        yield _ndjson_line(ev)
     try:
-        result = await execute_search(search_request)
-        line = {
-            "type": "complete",
-            "data": result.model_dump(mode="json"),
-        }
-        yield (json.dumps(line, ensure_ascii=False) + "\n").encode("utf-8")
+        result = task.result()
     except HTTPException as he:
-        err = {"type": "error", "status_code": he.status_code, "detail": he.detail}
-        yield (json.dumps(err, ensure_ascii=False, default=str) + "\n").encode("utf-8")
+        yield _ndjson_line({"type": "error", "status_code": he.status_code, "detail": he.detail})
+        return
+    yield _ndjson_line({"type": "complete", "data": result.model_dump(mode="json")})
 
 
 @router.post("/api/search/stream")

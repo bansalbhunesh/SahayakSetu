@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 
 from fastapi import HTTPException
 
@@ -65,7 +66,10 @@ def _guided_fallback(language: str) -> tuple[str, str]:
     )
 
 
-async def execute_search(search_request: SearchRequest) -> SearchResponse:
+async def execute_search(
+    search_request: SearchRequest,
+    stream_emit: Callable[[dict[str, object]], Awaitable[None]] | None = None,
+) -> SearchResponse:
     raw_user_id, signed_user_id = session_service.resolve_user_id(search_request.user_id)
     try:
         log_pipeline_step("search", "start", "")
@@ -264,6 +268,7 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
             raise HTTPException(status_code=429, detail="Daily limit reached. Try tomorrow.")
 
         history = await session_service.get_history(raw_user_id)
+        use_json_llm = LLM_JSON_MODE and stream_emit is None
         messages = llm_service.build_messages(
             original_query,
             context,
@@ -272,7 +277,7 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
             near_miss_context=near_miss_context,
             citation_index_block=citation_index_block,
             source_index_block=source_index_block,
-            json_mode=LLM_JSON_MODE,
+            json_mode=use_json_llm,
             detected_query_language=detected_lang,
             language_register_hint=lang_register_hint,
         )
@@ -280,7 +285,7 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
         reasoning_why = near_miss_text = None
         provider = None
         log_pipeline_step("llm", "start", "generate")
-        if LLM_JSON_MODE:
+        if use_json_llm:
             try:
                 structured, provider = await llm_service.generate_json(messages)
                 verified = await asyncio.to_thread(
@@ -296,6 +301,14 @@ async def execute_search(search_request: SearchRequest) -> SearchResponse:
                 answer_main, reasoning_why, near_miss_text = llm_service.parse_structured_response(
                     raw_text
                 )
+        elif stream_emit is not None:
+
+            async def _emit_token(t: str) -> None:
+                if t:
+                    await stream_emit({"type": "token", "text": t})
+
+            raw_text, provider = await llm_service.generate_stream(messages, _emit_token)
+            answer_main, reasoning_why, near_miss_text = llm_service.parse_structured_response(raw_text)
         else:
             raw_text, provider = await llm_service.generate(messages)
             answer_main, reasoning_why, near_miss_text = llm_service.parse_structured_response(raw_text)

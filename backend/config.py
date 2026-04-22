@@ -147,6 +147,23 @@ class _GeminiAdapter:
             )
         raise RuntimeError("gemini_sdk_unavailable")
 
+    def generate_content_stream(self, prompt: str, generation_config: dict[str, Any] | None = None):
+        """Iterator of response chunks (incremental text in ``chunk.text`` where supported)."""
+        if self._mode == "google-genai":
+            cfg = google_genai_types.GenerateContentConfig(**(generation_config or {}))
+            return self._client.models.generate_content_stream(
+                model=self.model,
+                contents=prompt,
+                config=cfg,
+            )
+        if self._mode == "legacy-generativeai":
+            return self._legacy_model.generate_content(
+                prompt,
+                generation_config=generation_config,
+                stream=True,
+            )
+        raise RuntimeError("gemini_sdk_unavailable")
+
 
 gemini_model = None
 if GEMINI_API_KEY:

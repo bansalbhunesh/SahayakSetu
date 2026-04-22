@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import sys
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,8 +52,18 @@ def _mock_retrieval_and_llm(monkeypatch):
             "test-model",
         )
 
+    async def _generate_stream(_messages, on_token):
+        await on_token("tok")
+        body = (
+            f"{llm_service.MARK_ANSWER}\nStreamed answer [1].\n"
+            f"{llm_service.MARK_WHY}\n- because\n"
+            f"{llm_service.MARK_NEAR}\nNone"
+        )
+        return body, "test-stream"
+
     monkeypatch.setattr(llm_service, "rewrite_query", _rewrite)
     monkeypatch.setattr(llm_service, "generate_json", _generate_json)
+    monkeypatch.setattr(llm_service, "generate_stream", _generate_stream)
     monkeypatch.setattr(retrieval_service, "retrieve_for_rag", _retrieve)
 
 
@@ -115,22 +126,28 @@ def test_post_search_oversized_query_422():
 
 
 def test_search_stream_returns_ndjson_meta_and_complete():
+    # Fresh query each run avoids cache hits so we exercise LLM token streaming.
     with client.stream(
         "POST",
         "/api/search/stream",
-        json={"query": "PMAY test", "language": "en-IN"},
+        json={"query": f"PMAY stream ndjson {uuid.uuid4().hex}", "language": "en-IN"},
     ) as r:
         assert r.status_code == 200
         raw = b"".join(r.iter_bytes())
     lines = [ln for ln in raw.decode("utf-8").strip().split("\n") if ln.strip()]
-    assert len(lines) >= 2
-    a = json.loads(lines[0])
-    b = json.loads(lines[1])
-    assert a.get("type") == "meta"
-    assert a.get("trace_id")
-    assert b.get("type") == "complete"
-    assert "data" in b
-    assert "moderation_blocked" in b["data"]
+    assert len(lines) >= 3
+    types_in_order = [json.loads(ln).get("type") for ln in lines]
+    assert types_in_order[0] == "meta"
+    assert "token" in types_in_order
+    assert types_in_order[-1] == "complete"
+    meta = json.loads(lines[0])
+    assert meta.get("trace_id")
+    token_ev = next(x for x in (json.loads(ln) for ln in lines) if x.get("type") == "token")
+    assert token_ev.get("text") == "tok"
+    complete = json.loads(lines[-1])
+    assert complete.get("type") == "complete"
+    assert "data" in complete
+    assert "moderation_blocked" in complete["data"]
 
 
 def test_cache_query_normalization_nfkc():
