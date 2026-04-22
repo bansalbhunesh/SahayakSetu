@@ -4,7 +4,7 @@
 [![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen)](https://sahayak-setu.vercel.app)
 [![Challenge](https://img.shields.io/badge/Challenge-Accessibility_%26_Societal_Impact-blue)](#)
 [![Stack](https://img.shields.io/badge/Stack-Voice--First_Dual--Brain_AI-orange)](#)
-[![Status](https://img.shields.io/badge/Status-Production--Ready-success)](#)
+[![Status](https://img.shields.io/badge/Status-Hackathon--demo-yellow)](#)
 
 ---
 
@@ -13,7 +13,7 @@
 
 **The Problem:** India has 1,200+ government schemes, yet millions remain unaware of their eligibility because documentation is overwhelmingly stored in complex English PDFs. For the last-mile citizen—especially the rural, elderly, or non-literate—this creates a **Digital & Linguistic Barrier** to their basic rights.
 
-**The Solution:** SahayakSetu is a production-grade, voice-first digital concierge designed to dismantle the 'last-mile' information barrier. By combining high-precision Vector RAG with real-time script-aware intelligence, we enable citizens to translate complex government bureaucracy into clear, actionable roadmaps in their native dialect—reimagining the relationship between citizen and state from a passive search for 'answers' to an empowered pursuit of 'action'.
+**The Solution:** SahayakSetu is a **demo-hardened**, voice-first digital concierge built with production-style patterns (grounding, timeouts, quotas) to dismantle the 'last-mile' information barrier. By combining high-precision Vector RAG with real-time script-aware intelligence, we enable citizens to translate complex government bureaucracy into clear, actionable roadmaps in their native dialect—reimagining the relationship between citizen and state from a passive search for 'answers' to an empowered pursuit of 'action'.
 
 ---
 
@@ -21,6 +21,10 @@
 - **Frontend (Production)**: [https://sahayak-setu.vercel.app](https://sahayak-setu.vercel.app)
 - **Backend (Render API)**: [https://sahayaksetu-backend-3kxl.onrender.com/health](https://sahayaksetu-backend-3kxl.onrender.com/health)
 - **Knowledge Base**: [38 Verified Scheme Chunks (Qdrant)](/scripts/ingest.py)
+
+### Render / free tier cold starts (demo killer)
+
+Serverless hosts **spin down** idle services; the first request after idle can take **30–60+ seconds**. **No repo change fixes this by itself.** Use an external uptime monitor to `GET` your `/health` or `/ready` URL **every 10–14 minutes** (e.g. [UptimeRobot](https://uptimerobot.com), Better Stack, or a cron) so the instance stays warm before demos and judging.
 
 ---
 
@@ -59,7 +63,7 @@ Judges often ask: *"How is this different from Google Voice Search?"*
 ---
 
 ## 🎯 Societal Impact & Scalability
-- **Zero Hallucination Transparency**: Every response features a **Semantic Confidence Tag (Match %)**, proving the advice is grounded in verified data.
+- **Grounding-first transparency**: Every response includes a **semantic match %** tied to retrieved catalogue text (this is *retrieval* confidence, not a legal guarantee). The main answer path is grounded and verified; some action-plan fields are model-generated with URL filtering — see limitation below.
 - **In-Memory Scalability**: Optimized for low-footprint deployment on Render Free Tier (~200MB RAM usage).
 - **Sustainable Scaling**: Built entirely on **Free Tier infrastructure** (Google AI Studio, Groq Free, Qdrant Cloud), making it viable for 100% free deployment to millions of citizens.
 
@@ -244,6 +248,7 @@ docker-compose up -d --build
 | `SESSION_SECRET` | Yes | Any random string for session signing |
 | `ENV` | No | `development` or `production` |
 | `MODERATION_STRICT` | No | `false` (dev) / `true` (prod — fails closed on LLM errors) |
+| `AGENT_PLAN_CALL_TIMEOUT_S` | No | Max seconds for action-plan JSON LLM calls (default `90`) |
 | `FRONTEND_ORIGIN` | No | URL of frontend for CORS (e.g. `http://127.0.0.1:5500`) |
 | `VAPI_API_KEY` | No | Only needed for voice call feature via Vapi.ai |
 | `VAPI_ASSISTANT_ID` | No | Only needed for voice call feature |

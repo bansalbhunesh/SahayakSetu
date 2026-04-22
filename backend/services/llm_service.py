@@ -9,6 +9,7 @@ import re
 
 from backend.config import (
     CHAT_MODEL,
+    AGENT_PLAN_CALL_TIMEOUT_S,
     LLM_CALL_TIMEOUT_S,
     API_RETRY_ATTEMPTS,
     API_RETRY_BASE_DELAY_S,
@@ -279,7 +280,7 @@ async def generate(messages: list[dict]) -> tuple[str, str]:
                     groq_client.chat.completions.create,
                     model="llama-3.3-70b-versatile",
                     messages=_trim_messages_for_budget(messages),
-                    temperature=0.7,
+                    temperature=0.1,
                 ),
                 seconds=LLM_CALL_TIMEOUT_S,
                 step="llm_generate_groq",
@@ -457,14 +458,18 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
 
     if gemini_model is not None:
         try:
-            response = await asyncio.to_thread(
-                gemini_model.generate_content,
-                prompt,
-                generation_config={
-                    "response_mime_type": "application/json",
-                    "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
-                    "temperature": 0.15,
-                },
+            response = await with_timeout(
+                asyncio.to_thread(
+                    gemini_model.generate_content,
+                    prompt,
+                    generation_config={
+                        "response_mime_type": "application/json",
+                        "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
+                        "temperature": 0.15,
+                    },
+                ),
+                seconds=AGENT_PLAN_CALL_TIMEOUT_S,
+                step="llm_agent_plan_gemini",
             )
             return _parse_dict(response.text or ""), CHAT_MODEL
         except Exception as e:
@@ -473,14 +478,18 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
                 extra={"error": str(e)[:200]},
             )
             try:
-                response_retry = await asyncio.to_thread(
-                    gemini_model.generate_content,
-                    prompt,
-                    generation_config={
-                        "response_mime_type": "application/json",
-                        "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
-                        "temperature": 0.0,
-                    },
+                response_retry = await with_timeout(
+                    asyncio.to_thread(
+                        gemini_model.generate_content,
+                        prompt,
+                        generation_config={
+                            "response_mime_type": "application/json",
+                            "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
+                            "temperature": 0.0,
+                        },
+                    ),
+                    seconds=AGENT_PLAN_CALL_TIMEOUT_S,
+                    step="llm_agent_plan_gemini_retry",
                 )
                 return _parse_dict(response_retry.text or ""), CHAT_MODEL
             except Exception as e2:
@@ -501,11 +510,16 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
                 },
                 {"role": "user", "content": prompt},
             ]
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages,
-                response_format={"type": "json_object"},
-                temperature=0.1,
+            response = await with_timeout(
+                asyncio.to_thread(
+                    groq_client.chat.completions.create,
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    temperature=0.1,
+                ),
+                seconds=AGENT_PLAN_CALL_TIMEOUT_S,
+                step="llm_agent_plan_groq",
             )
             return _parse_dict(response.choices[0].message.content or ""), "groq-llama-3.3"
         except Exception as ge:

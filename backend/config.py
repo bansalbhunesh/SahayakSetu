@@ -91,6 +91,7 @@ RETRIEVAL_HARD_FLOOR = 0.55
 
 # External call limits — tune via env in production.
 LLM_CALL_TIMEOUT_S = float(os.getenv("LLM_CALL_TIMEOUT_S", "120"))
+AGENT_PLAN_CALL_TIMEOUT_S = float(os.getenv("AGENT_PLAN_CALL_TIMEOUT_S", "90"))
 MODERATION_CALL_TIMEOUT_S = float(os.getenv("MODERATION_CALL_TIMEOUT_S", "45"))
 REWRITE_QUERY_TIMEOUT_S = float(os.getenv("REWRITE_QUERY_TIMEOUT_S", "30"))
 API_RETRY_ATTEMPTS = int(os.getenv("API_RETRY_ATTEMPTS", "3"))
