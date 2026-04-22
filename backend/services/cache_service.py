@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import unicodedata
 from typing import Any
 
 from backend.services.session_service import _client
@@ -14,9 +15,16 @@ CACHE_TTL_SECONDS = int(os.getenv("ANSWER_CACHE_TTL_SECONDS", str(60 * 60 * 6)))
 logger = logging.getLogger(__name__)
 
 
+def _normalize_cache_query(query: str) -> str:
+    """Unicode NFKC + casefold + whitespace collapse so cache keys match user intent."""
+    s = unicodedata.normalize("NFKC", (query or ""))
+    return " ".join(s.strip().casefold().split())
+
+
 def _cache_key(query: str, language: str) -> str:
-    normalized = " ".join(query.strip().lower().split())
-    digest = hashlib.sha256(f"{normalized}|{language}".encode("utf-8")).hexdigest()[:24]
+    normalized = _normalize_cache_query(query)
+    lang = (language or "").strip().casefold()
+    digest = hashlib.sha256(f"{normalized}|{lang}".encode("utf-8")).hexdigest()[:24]
     return f"cache:answer:{digest}"
 
 

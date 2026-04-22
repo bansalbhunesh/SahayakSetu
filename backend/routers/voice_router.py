@@ -9,13 +9,29 @@ from slowapi.util import get_remote_address
 from backend.config import (
     ENV,
     SIMILARITY_THRESHOLD,
+    VAPI_WEBHOOK_MAX_SKEW_S,
+    VAPI_WEBHOOK_REQUIRE_TIMESTAMP,
     VAPI_WEBHOOK_SECRET,
 )
 from backend.rate_limit import limiter
 from backend.services import injection_guard, moderation_service, pii_scrubber, retrieval_service
+from backend.services import vapi_webhook_guard
 from backend.services.language_hint import infer_bcp47
 
 router = APIRouter(tags=["voice"])
+
+_ASSISTANT_RESPONSE = {
+    "assistant": {
+        "model": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+        },
+        "voice": {"provider": "azure", "voiceId": "hi-IN-SwaraNeural"},
+        "firstMessage": (
+            "Namaste! Main SahayakSetu hoon. Aap kisi bhi sarkari yojna ke baare mein pooch sakte hain."
+        ),
+    }
+}
 
 
 def _verify_vapi_signature(request: Request, raw_body: bytes) -> None:
@@ -54,21 +70,22 @@ async def handle_vapi_webhook(request: Request):
     webhook_body: dict[str, Any] = parsed
     message = webhook_body.get("message", {})
 
-    if message.get("type") == "assistant-request":
-        return JSONResponse(
-            content={
-                "assistant": {
-                    "model": {
-                        "provider": "openai",
-                        "model": "gpt-4o-mini",
-                    },
-                    "voice": {"provider": "azure", "voiceId": "hi-IN-SwaraNeural"},
-                    "firstMessage": (
-                        "Namaste! Main SahayakSetu hoon. Aap kisi bhi sarkari yojna ke baare mein pooch sakte hain."
-                    ),
-                }
-            }
+    if VAPI_WEBHOOK_SECRET:
+        vapi_webhook_guard.assert_webhook_timestamp_fresh(
+            parsed=webhook_body,
+            max_skew_seconds=VAPI_WEBHOOK_MAX_SKEW_S,
+            require_timestamp=VAPI_WEBHOOK_REQUIRE_TIMESTAMP,
         )
+        is_first = await vapi_webhook_guard.reserve_vapi_webhook_idempotency(raw_body)
+        if not is_first:
+            if message.get("type") == "assistant-request":
+                return JSONResponse(content=_ASSISTANT_RESPONSE)
+            if message.get("type") == "tool-calls":
+                return JSONResponse(content={"results": []})
+            return JSONResponse(content={})
+
+    if message.get("type") == "assistant-request":
+        return JSONResponse(content=_ASSISTANT_RESPONSE)
 
     if message.get("type") == "tool-calls":
         tool_calls = message.get("toolCalls", [])

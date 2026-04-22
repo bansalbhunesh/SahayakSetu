@@ -21,6 +21,11 @@ function renderConfidenceArc(confidence, score) {
     host.className = "confidence-arc";
     host.dataset.status = meta.status;
     host.style.setProperty("--pct", String(pct));
+    host.setAttribute("role", "img");
+    host.setAttribute(
+        "aria-label",
+        `${meta.label}, retrieval match about ${pct} percent. ${meta.grounded}`,
+    );
     host.innerHTML = `
       <svg viewBox="0 0 64 64" class="arc-svg" aria-hidden="true">
         <path class="arc-bg" d="M 8 44 A 24 24 0 1 1 56 44"></path>

@@ -42,6 +42,9 @@ services:
         key: BACKEND_URL
       - sync: false
         key: REDIS_URL
+      # Share Redis with SlowAPI so rate limits apply across instances (see RATE_LIMIT_USE_REDIS).
+      - key: RATE_LIMIT_USE_REDIS
+        value: "true"
       - sync: false
         key: SESSION_SECRET
       - sync: false

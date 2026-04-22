@@ -114,6 +114,14 @@ def test_post_search_oversized_query_422():
     assert r.status_code == 422
 
 
+def test_cache_query_normalization_nfkc():
+    from backend.services.cache_service import _normalize_cache_query
+
+    a = _normalize_cache_query("  PM\u00a0Kisan  ")
+    b = _normalize_cache_query("pm kisan")
+    assert a == b
+
+
 def test_post_search_happy_path_200():
     r = client.post("/api/search", json={"query": "PMAY eligibility Karnataka", "language": "en-IN"})
     assert r.status_code == 200
@@ -187,6 +195,63 @@ def test_vapi_webhook_production_missing_secret_returns_503(monkeypatch):
     detail = r.json().get("detail")
     assert isinstance(detail, dict)
     assert detail.get("error") == "webhook_secret_not_configured"
+
+
+def test_vapi_webhook_rejects_stale_body_timestamp(monkeypatch):
+    from backend.routers import voice_router
+
+    secret = b"skew-test"
+    monkeypatch.setattr(voice_router, "VAPI_WEBHOOK_SECRET", secret.decode())
+    body = {
+        "message": {
+            "type": "assistant-request",
+            "createdAt": "1970-01-01T00:00:00.000Z",
+        }
+    }
+    raw = json.dumps(body).encode()
+    sig = hmac.new(secret, raw, hashlib.sha256).hexdigest()
+    r = client.post(
+        "/vapi-webhook",
+        content=raw,
+        headers={"X-Vapi-Signature": sig, "Content-Type": "application/json"},
+    )
+    assert r.status_code == 401
+
+
+def test_vapi_webhook_requires_timestamp_when_configured(monkeypatch):
+    from backend.routers import voice_router
+
+    secret = b"ts-req"
+    monkeypatch.setattr(voice_router, "VAPI_WEBHOOK_SECRET", secret.decode())
+    monkeypatch.setattr(voice_router, "VAPI_WEBHOOK_REQUIRE_TIMESTAMP", True)
+    body = {"message": {"type": "assistant-request"}}
+    raw = json.dumps(body).encode()
+    sig = hmac.new(secret, raw, hashlib.sha256).hexdigest()
+    r = client.post(
+        "/vapi-webhook",
+        content=raw,
+        headers={"X-Vapi-Signature": sig, "Content-Type": "application/json"},
+    )
+    assert r.status_code == 401
+
+
+def test_vapi_webhook_duplicate_signed_body_idempotent(monkeypatch):
+    from datetime import datetime, timezone
+
+    from backend.routers import voice_router
+
+    secret = b"dedupe-test"
+    monkeypatch.setattr(voice_router, "VAPI_WEBHOOK_SECRET", secret.decode())
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    body_dict = {"message": {"type": "assistant-request", "createdAt": now}}
+    raw = json.dumps(body_dict, separators=(",", ":")).encode()
+    sig = hmac.new(secret, raw, hashlib.sha256).hexdigest()
+    headers = {"X-Vapi-Signature": sig, "Content-Type": "application/json"}
+    r1 = client.post("/vapi-webhook", content=raw, headers=headers)
+    r2 = client.post("/vapi-webhook", content=raw, headers=headers)
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r1.json() == r2.json()
 
 
 def test_vapi_webhook_signed_invalid_json_400(monkeypatch):

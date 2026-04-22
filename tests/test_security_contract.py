@@ -95,11 +95,14 @@ def test_vapi_webhook_rejects_wrong_signature(monkeypatch):
 
 
 def test_vapi_webhook_accepts_valid_signature(monkeypatch):
+    from datetime import datetime, timezone
+
     from backend.routers import voice_router
 
     secret = b"test-secret"
     monkeypatch.setattr(voice_router, "VAPI_WEBHOOK_SECRET", secret.decode())
-    body = json.dumps({"message": {"type": "assistant-request"}}).encode()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    body = json.dumps({"message": {"type": "assistant-request", "createdAt": now}}).encode()
     sig = hmac.new(secret, body, hashlib.sha256).hexdigest()
     r = client.post(
         "/vapi-webhook",

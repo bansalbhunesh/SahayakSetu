@@ -249,6 +249,10 @@ docker-compose up -d --build
 | `ENV` | No | `development` or `production` |
 | `MODERATION_STRICT` | No | `false` (dev) / `true` (prod — fails closed on LLM errors) |
 | `AGENT_PLAN_CALL_TIMEOUT_S` | No | Max seconds for action-plan JSON LLM calls (default `90`) |
+| `NEAR_MISS_SCORE_FLOOR` | No | Min retrieval score for near-miss rows (default `0.15`) |
+| `VAPI_WEBHOOK_MAX_SKEW_S` | No | Max age skew for signed webhook JSON timestamps (default `300` seconds) |
+| `VAPI_WEBHOOK_REQUIRE_TIMESTAMP` | No | If `true`, webhook JSON must include a parseable `createdAt` / `timestamp` |
+| `RATE_LIMIT_USE_REDIS` | No | When `true` (default in `ENV=production`), use `REDIS_URL` for SlowAPI limits. Override with `RATE_LIMIT_STORAGE_URI`. |
 | `FRONTEND_ORIGIN` | No | URL of frontend for CORS (e.g. `http://127.0.0.1:5500`) |
 | `VAPI_API_KEY` | No | Only needed for voice call feature via Vapi.ai |
 | `VAPI_ASSISTANT_ID` | No | Only needed for voice call feature |
@@ -269,6 +273,8 @@ npm run test:e2e
 ```
 
 Tests serve the static `frontend/` folder and **mock** `POST /api/search`, so no local backend is required.
+
+**Streaming responses** (`StreamingResponse` for partial tokens) are not implemented yet; the API still returns one JSON payload per request.
 
 ---
 

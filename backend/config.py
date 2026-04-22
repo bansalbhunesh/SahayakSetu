@@ -55,6 +55,8 @@ if ENV == "development":
     ALLOWED_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
 VAPI_WEBHOOK_SECRET = os.getenv("VAPI_WEBHOOK_SECRET", "").strip()
+# Signed-body timestamp skew (seconds). Mitigates replay of very old captured payloads.
+VAPI_WEBHOOK_MAX_SKEW_S = int(os.getenv("VAPI_WEBHOOK_MAX_SKEW_S", "300"))
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -66,6 +68,8 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 # True: moderation JSON/call failures block (fail-closed). False: fail-open (local dev).
 MODERATION_STRICT = _env_bool("MODERATION_STRICT", False)
+# If True, Vapi webhook JSON must include a parseable timestamp (strict integrations).
+VAPI_WEBHOOK_REQUIRE_TIMESTAMP = _env_bool("VAPI_WEBHOOK_REQUIRE_TIMESTAMP", False)
 # True enables structured JSON generation path for /api/search.
 # Default ON in production to keep grounding verifier active.
 LLM_JSON_MODE = _env_bool("LLM_JSON_MODE", ENV == "production")
@@ -79,8 +83,10 @@ RAG_VECTOR_QUERY_LIMIT = 8
 RAG_VECTOR_CANDIDATE_LIMIT = 12
 HYBRID_KEYWORD_WEIGHT = float(os.getenv("HYBRID_KEYWORD_WEIGHT", "0.3"))
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
-# Adaptive floor: rejects very weak vector neighbours (junk) while tracking threshold changes.
-NEAR_MISS_SCORE_FLOOR = SIMILARITY_THRESHOLD * 0.4
+# Adaptive floor: rejects very weak vector neighbours (junk). Default 0.15 (panel tuning); override via env.
+NEAR_MISS_SCORE_FLOOR = float(
+    os.getenv("NEAR_MISS_SCORE_FLOOR", str(max(0.15, SIMILARITY_THRESHOLD * 0.4)))
+)
 NEAR_MISS_MAX = 2
 HISTORY_WINDOW = 20
 MAX_SESSION_STORE_SIZE = 500
