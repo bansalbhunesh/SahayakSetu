@@ -13,6 +13,7 @@ from backend.config import (
     API_RETRY_ATTEMPTS,
     API_RETRY_BASE_DELAY_S,
     API_RETRY_MAX_DELAY_S,
+    MAX_PROMPT_CHARS,
     REWRITE_QUERY_TIMEOUT_S,
     gemini_model,
     groq_client,
@@ -219,12 +220,37 @@ _DEGRADED_CHAT = (
 )
 
 
+def _trim_messages_for_budget(messages: list[dict], max_chars: int = MAX_PROMPT_CHARS) -> list[dict]:
+    if max_chars <= 0:
+        return messages
+    total = sum(len((m.get("content") or "")) for m in messages if isinstance(m, dict))
+    if total <= max_chars:
+        return messages
+    out = list(messages)
+    # Keep system + latest user message; trim oldest conversational history first.
+    while len(out) > 2 and total > max_chars:
+        removed = out.pop(1)
+        total -= len((removed.get("content") or ""))
+    if total <= max_chars:
+        return out
+    # Final guard: truncate latest user message tail-preserving instruction context.
+    latest = out[-1]
+    content = (latest.get("content") or "")
+    keep = max(500, max_chars - sum(len((m.get("content") or "")) for m in out[:-1]))
+    if len(content) > keep:
+        latest["content"] = content[:keep]
+    return out
+
+
 async def generate(messages: list[dict]) -> tuple[str, str]:
     """Primary chat completion. Does not raise — returns a safe string if all providers fail."""
 
     async def _gemini_once() -> tuple[str, str]:
+        if gemini_model is None:
+            raise RuntimeError("gemini_unconfigured")
+        messages_budgeted = _trim_messages_for_budget(messages)
         prompt_parts = [f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n"]
-        for msg in messages:
+        for msg in messages_budgeted:
             if msg["role"] != "system":
                 role = "User" if msg["role"] == "user" else "Assistant"
                 prompt_parts.append(f"{role}: {msg['content']}")
@@ -252,7 +278,7 @@ async def generate(messages: list[dict]) -> tuple[str, str]:
                 asyncio.to_thread(
                     groq_client.chat.completions.create,
                     model="llama-3.3-70b-versatile",
-                    messages=messages,
+                    messages=_trim_messages_for_budget(messages),
                     temperature=0.7,
                 ),
                 seconds=LLM_CALL_TIMEOUT_S,
@@ -270,6 +296,7 @@ def _insufficient_json_payload() -> dict:
 
 
 def _flatten_prompt(messages: list[dict]) -> str:
+    messages = _trim_messages_for_budget(messages)
     prompt_parts = [f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n"]
     for msg in messages:
         if msg["role"] != "system":
@@ -311,60 +338,65 @@ async def generate_json(messages: list[dict]) -> tuple[dict, str]:
             raise ValueError("Structured response is not a JSON object")
         return data
 
-    try:
-        response = await with_timeout(
-            asyncio.to_thread(
-                gemini_model.generate_content,
-                prompt,
-                generation_config={
-                    "response_mime_type": "application/json",
-                    "response_schema": schema,
-                    "temperature": 0.1,
-                },
-            ),
-            seconds=LLM_CALL_TIMEOUT_S,
-            step="llm_generate_json_gemini",
-        )
-        data = _parse_dict(response.text or "")
-        return data, CHAT_MODEL
-    except Exception as e:
+    if gemini_model is not None:
         try:
-            response_retry = await with_timeout(
+            response = await with_timeout(
                 asyncio.to_thread(
                     gemini_model.generate_content,
                     prompt,
                     generation_config={
                         "response_mime_type": "application/json",
                         "response_schema": schema,
-                        "temperature": 0.0,
+                        "temperature": 0.1,
                     },
                 ),
                 seconds=LLM_CALL_TIMEOUT_S,
-                step="llm_generate_json_gemini_retry",
+                step="llm_generate_json_gemini",
             )
-            data_retry = _parse_dict(response_retry.text or "")
-            return data_retry, CHAT_MODEL
-        except Exception:
-            pass
-        if groq_client:
+            data = _parse_dict(response.text or "")
+            return data, CHAT_MODEL
+        except Exception as e:
             try:
-                response = await with_timeout(
+                response_retry = await with_timeout(
                     asyncio.to_thread(
-                        groq_client.chat.completions.create,
-                        model="llama-3.3-70b-versatile",
-                        messages=messages,
-                        response_format={"type": "json_object"},
-                        temperature=0.1,
+                        gemini_model.generate_content,
+                        prompt,
+                        generation_config={
+                            "response_mime_type": "application/json",
+                            "response_schema": schema,
+                            "temperature": 0.0,
+                        },
                     ),
                     seconds=LLM_CALL_TIMEOUT_S,
-                    step="llm_generate_json_groq",
+                    step="llm_generate_json_gemini_retry",
                 )
-                data = _parse_dict(response.choices[0].message.content or "")
-                return data, "groq-llama-3.3"
-            except Exception as ge:
-                logger.warning("structured_llm_fallback_failed", extra={"error": str(ge)[:200]})
+                data_retry = _parse_dict(response_retry.text or "")
+                return data_retry, CHAT_MODEL
+            except Exception:
+                pass
+    else:
+        e = RuntimeError("gemini_unconfigured")
+    if not groq_client:
         logger.warning("structured_json_degraded", extra={"error": str(e)[:200]})
         return _insufficient_json_payload(), "unavailable"
+    try:
+        response = await with_timeout(
+            asyncio.to_thread(
+                groq_client.chat.completions.create,
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.1,
+            ),
+            seconds=LLM_CALL_TIMEOUT_S,
+            step="llm_generate_json_groq",
+        )
+        data = _parse_dict(response.choices[0].message.content or "")
+        return data, "groq-llama-3.3"
+    except Exception as ge:
+        logger.warning("structured_llm_fallback_failed", extra={"error": str(ge)[:200]})
+    logger.warning("structured_json_degraded", extra={"error": str(e)[:200]})
+    return _insufficient_json_payload(), "unavailable"
 
 
 # Gemini JSON schema for welfare action-plan agent (grounding enforced downstream).
@@ -423,38 +455,39 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
             raise ValueError("agent plan response is not a JSON object")
         return data
 
-    try:
-        response = await asyncio.to_thread(
-            gemini_model.generate_content,
-            prompt,
-            generation_config={
-                "response_mime_type": "application/json",
-                "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
-                "temperature": 0.15,
-            },
-        )
-        return _parse_dict(response.text or ""), CHAT_MODEL
-    except Exception as e:
-        logger.warning(
-            "agent_plan_json_primary_failed",
-            extra={"error": str(e)[:200]},
-        )
+    if gemini_model is not None:
         try:
-            response_retry = await asyncio.to_thread(
+            response = await asyncio.to_thread(
                 gemini_model.generate_content,
                 prompt,
                 generation_config={
                     "response_mime_type": "application/json",
                     "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
-                    "temperature": 0.0,
+                    "temperature": 0.15,
                 },
             )
-            return _parse_dict(response_retry.text or ""), CHAT_MODEL
-        except Exception as e2:
+            return _parse_dict(response.text or ""), CHAT_MODEL
+        except Exception as e:
             logger.warning(
-                "agent_plan_json_retry_failed",
-                extra={"error": str(e2)[:200]},
+                "agent_plan_json_primary_failed",
+                extra={"error": str(e)[:200]},
             )
+            try:
+                response_retry = await asyncio.to_thread(
+                    gemini_model.generate_content,
+                    prompt,
+                    generation_config={
+                        "response_mime_type": "application/json",
+                        "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
+                        "temperature": 0.0,
+                    },
+                )
+                return _parse_dict(response_retry.text or ""), CHAT_MODEL
+            except Exception as e2:
+                logger.warning(
+                    "agent_plan_json_retry_failed",
+                    extra={"error": str(e2)[:200]},
+                )
 
     if groq_client:
         try:
@@ -483,6 +516,8 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
 
 async def generate_json_prompt(prompt: str) -> tuple[dict, str]:
     """Single-prompt strict JSON generation helper."""
+    if gemini_model is None:
+        return {}, CHAT_MODEL
     try:
         response = await asyncio.to_thread(
             gemini_model.generate_content,
@@ -507,6 +542,8 @@ async def rewrite_query(query: str, language: str) -> str:
         f"Target language: {language}\n"
         f"User query: {query}"
     )
+    if gemini_model is None:
+        return query
     try:
         resp = await with_timeout(
             asyncio.to_thread(gemini_model.generate_content, prompt),

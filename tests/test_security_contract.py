@@ -125,6 +125,25 @@ def test_trace_id_in_response_header():
     assert len(r.headers["X-Trace-Id"]) >= 8
 
 
+def test_ready_endpoint_reports_dependencies(monkeypatch):
+    from backend.routers import health_router
+
+    async def _snapshot_ok():
+        return {
+            "ready": True,
+            "dependencies": {
+                "qdrant": "up",
+                "redis": "up",
+                "llm": {"primary": "test-model", "fallback": "none", "ready": True},
+            },
+        }
+
+    monkeypatch.setattr(health_router, "readiness_snapshot", _snapshot_ok)
+    r = client.get("/ready")
+    assert r.status_code == 200
+    assert r.json()["ready"] is True
+
+
 def test_cors_blocks_unknown_origin():
     r = client.options(
         "/api/search",

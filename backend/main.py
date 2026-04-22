@@ -62,10 +62,13 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def trace_middleware(request: Request, call_next):
         trace_id = request.headers.get("x-trace-id") or uuid.uuid4().hex
-        trace_id_var.set(trace_id)
-        response = await call_next(request)
-        response.headers["X-Trace-Id"] = trace_id
-        return response
+        token = trace_id_var.set(trace_id)
+        try:
+            response = await call_next(request)
+            response.headers["X-Trace-Id"] = trace_id
+            return response
+        finally:
+            trace_id_var.reset(token)
 
     app.include_router(health_router.router)
     app.include_router(search_router.router)

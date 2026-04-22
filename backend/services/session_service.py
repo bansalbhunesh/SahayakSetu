@@ -144,7 +144,7 @@ async def append(user_id: str, query: str, answer: str) -> None:
         pipe.expire(key, SESSION_TTL_SECONDS)
         await pipe.execute()
     except Exception:
-        pass
+        logger.warning("session_append_failed", extra={"user_id": user_id[:24]}, exc_info=True)
 
 
 @_redis_safe((0, DAILY_LLM_CAP))

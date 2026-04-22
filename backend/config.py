@@ -3,11 +3,25 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
-import google.generativeai as genai
 from dotenv import load_dotenv
 from openai import OpenAI
 from qdrant_client import QdrantClient
+
+try:
+    from google import genai as google_genai
+    from google.genai import types as google_genai_types
+except Exception:  # pragma: no cover - environment-dependent import
+    google_genai = None
+    google_genai_types = None
+
+legacy_genai = None
+if google_genai is None or google_genai_types is None:
+    try:
+        import google.generativeai as legacy_genai
+    except Exception:  # pragma: no cover - environment-dependent import
+        legacy_genai = None
 
 load_dotenv()
 
@@ -82,19 +96,54 @@ REWRITE_QUERY_TIMEOUT_S = float(os.getenv("REWRITE_QUERY_TIMEOUT_S", "30"))
 API_RETRY_ATTEMPTS = int(os.getenv("API_RETRY_ATTEMPTS", "3"))
 API_RETRY_BASE_DELAY_S = float(os.getenv("API_RETRY_BASE_DELAY_S", "0.4"))
 API_RETRY_MAX_DELAY_S = float(os.getenv("API_RETRY_MAX_DELAY_S", "6.0"))
+MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "16000"))
+MAX_QUERY_CHARS = int(os.getenv("MAX_QUERY_CHARS", "600"))
 
-if not QDRANT_URL or not GEMINI_API_KEY:
+if not QDRANT_URL:
     raise RuntimeError(
-        "Missing required env vars. "
-        f"QDRANT_URL={'set' if QDRANT_URL else 'MISSING'}, "
-        f"GEMINI_API_KEY={'set' if GEMINI_API_KEY else 'MISSING'}"
+        "Missing required env vars. QDRANT_URL=MISSING"
     )
+if not (GEMINI_API_KEY or GROQ_API_KEY):
+    raise RuntimeError("Missing required env vars. Provide GEMINI_API_KEY or GROQ_API_KEY.")
 
 qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY or None)
 qdrant_client.set_model(EMBEDDING_MODEL)
 
-genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel(CHAT_MODEL)
+class _GeminiAdapter:
+    """Unified generate_content adapter for google-genai and legacy SDK."""
+
+    def __init__(self, model: str, api_key: str):
+        self.model = model
+        self._mode = None
+        self._client: Any = None
+        self._legacy_model: Any = None
+        if google_genai is not None and google_genai_types is not None:
+            self._client = google_genai.Client(api_key=api_key)
+            self._mode = "google-genai"
+        elif legacy_genai is not None:
+            legacy_genai.configure(api_key=api_key)
+            self._legacy_model = legacy_genai.GenerativeModel(model)
+            self._mode = "legacy-generativeai"
+
+    def generate_content(self, prompt: str, generation_config: dict[str, Any] | None = None):
+        if self._mode == "google-genai":
+            cfg = google_genai_types.GenerateContentConfig(**(generation_config or {}))
+            return self._client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=cfg,
+            )
+        if self._mode == "legacy-generativeai":
+            return self._legacy_model.generate_content(
+                prompt,
+                generation_config=generation_config,
+            )
+        raise RuntimeError("gemini_sdk_unavailable")
+
+
+gemini_model = None
+if GEMINI_API_KEY:
+    gemini_model = _GeminiAdapter(CHAT_MODEL, GEMINI_API_KEY)
 
 groq_client: OpenAI | None = None
 if GROQ_API_KEY:

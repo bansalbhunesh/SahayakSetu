@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from typing import Any
 
 from backend.services.session_service import _client
 
 CACHE_TTL_SECONDS = int(os.getenv("ANSWER_CACHE_TTL_SECONDS", str(60 * 60 * 6)))
+logger = logging.getLogger(__name__)
 
 
 def _cache_key(query: str, language: str) -> str:
@@ -28,6 +30,7 @@ async def get(query: str, language: str) -> dict[str, Any] | None:
             return payload
         return None
     except Exception:
+        logger.warning("answer_cache_get_failed", exc_info=True)
         return None
 
 
@@ -39,4 +42,4 @@ async def set(query: str, language: str, payload: dict[str, Any]) -> None:
             json.dumps(payload, ensure_ascii=False),
         )
     except Exception:
-        pass
+        logger.warning("answer_cache_set_failed", exc_info=True)

@@ -1,6 +1,5 @@
 fastapi==0.115.0
-# NOTE: google-generativeai is deprecated. Migrate to google-genai when ready.
-# The 0.8.x line still works but shows FutureWarning on import.
+google-genai
 google-generativeai>=0.8.3
 openai==1.51.0
 qdrant-client==1.7.3
