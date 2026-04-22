@@ -40,6 +40,38 @@ def _parse_epoch_seconds(value: Any) -> float | None:
         return None
 
 
+def _as_stable_id(value: Any) -> str | None:
+    if value is None or isinstance(value, bool):
+        return None
+    s = str(value).strip()
+    if not s or len(s) > 220:
+        return None
+    return s
+
+
+def extract_webhook_delivery_id(parsed: dict[str, Any]) -> str | None:
+    """
+    Prefer a provider-stable id (call / message id) for dedupe when present,
+    so replays can be keyed even if the JSON body differs slightly.
+    """
+    top = _as_stable_id(parsed.get("id"))
+    if top:
+        return top
+    msg = parsed.get("message")
+    if not isinstance(msg, dict):
+        return None
+    for flat_key in ("callId", "call_id", "webhookId", "webhook_id"):
+        v = _as_stable_id(msg.get(flat_key))
+        if v:
+            return v
+    call = msg.get("call")
+    if isinstance(call, dict):
+        v = _as_stable_id(call.get("id"))
+        if v:
+            return v
+    return _as_stable_id(msg.get("id"))
+
+
 def extract_webhook_timestamp_seconds(parsed: dict[str, Any]) -> float | None:
     """Best-effort timestamp from signed JSON (body fields only — not unsigned headers)."""
     candidates: list[float] = []
@@ -75,17 +107,30 @@ def assert_webhook_timestamp_fresh(
         raise HTTPException(status_code=401, detail="Webhook timestamp outside allowed window.")
 
 
-async def reserve_vapi_webhook_idempotency(raw_body: bytes, ttl_seconds: int = 600) -> bool:
+def _webhook_dedupe_material(parsed: dict[str, Any] | None, raw_body: bytes) -> str:
+    """Single material string so one Redis NX covers id + body (no partial writes)."""
+    delivery_id = extract_webhook_delivery_id(parsed or {}) or ""
+    body_digest = hashlib.sha256(raw_body).hexdigest()
+    return hashlib.sha256(f"{delivery_id}\n{body_digest}".encode("utf-8")).hexdigest()
+
+
+async def reserve_vapi_webhook_idempotency(
+    raw_body: bytes,
+    parsed: dict[str, Any] | None = None,
+    *,
+    ttl_seconds: int = 600,
+) -> bool:
     """
-    Returns True if this request should be processed, False if it is a near-term replay
-    of an identical body (same HMAC-valid payload resent).
+    Returns True if this request should be processed, False on near-term replay.
+
+    Redis key combines optional stable delivery id (from signed JSON) with the
+    raw body digest so replays are blocked even when providers add fields.
     """
     from backend.services.session_service import _client
 
-    digest = hashlib.sha256(raw_body).hexdigest()
-    key = f"vapi:webhook:dedupe:{digest}"
+    material = _webhook_dedupe_material(parsed, raw_body)
+    key = f"vapi:webhook:dedupe:{material}"
     try:
-        # True when key was set; None/False when key already existed (NX miss).
         ok = await _client().set(key, "1", nx=True, ex=ttl_seconds)
         return ok is True
     except Exception:

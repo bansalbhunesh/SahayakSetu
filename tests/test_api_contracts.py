@@ -114,6 +114,25 @@ def test_post_search_oversized_query_422():
     assert r.status_code == 422
 
 
+def test_search_stream_returns_ndjson_meta_and_complete():
+    with client.stream(
+        "POST",
+        "/api/search/stream",
+        json={"query": "PMAY test", "language": "en-IN"},
+    ) as r:
+        assert r.status_code == 200
+        raw = b"".join(r.iter_bytes())
+    lines = [ln for ln in raw.decode("utf-8").strip().split("\n") if ln.strip()]
+    assert len(lines) >= 2
+    a = json.loads(lines[0])
+    b = json.loads(lines[1])
+    assert a.get("type") == "meta"
+    assert a.get("trace_id")
+    assert b.get("type") == "complete"
+    assert "data" in b
+    assert "moderation_blocked" in b["data"]
+
+
 def test_cache_query_normalization_nfkc():
     from backend.services.cache_service import _normalize_cache_query
 

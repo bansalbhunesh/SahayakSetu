@@ -274,7 +274,7 @@ npm run test:e2e
 
 Tests serve the static `frontend/` folder and **mock** `POST /api/search`, so no local backend is required.
 
-**Streaming responses** (`StreamingResponse` for partial tokens) are not implemented yet; the API still returns one JSON payload per request.
+**Streaming:** `POST /api/search/stream` returns **`application/x-ndjson`**: first line `{"type":"meta","trace_id":"..."}`, second line `{"type":"complete","data":{...same shape as /api/search...}}`. This is a transport wrapper for now (no token-by-token deltas yet).
 
 ---
 

@@ -76,7 +76,7 @@ async def handle_vapi_webhook(request: Request):
             max_skew_seconds=VAPI_WEBHOOK_MAX_SKEW_S,
             require_timestamp=VAPI_WEBHOOK_REQUIRE_TIMESTAMP,
         )
-        is_first = await vapi_webhook_guard.reserve_vapi_webhook_idempotency(raw_body)
+        is_first = await vapi_webhook_guard.reserve_vapi_webhook_idempotency(raw_body, webhook_body)
         if not is_first:
             if message.get("type") == "assistant-request":
                 return JSONResponse(content=_ASSISTANT_RESPONSE)
