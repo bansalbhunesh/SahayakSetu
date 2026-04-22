@@ -240,6 +240,7 @@ docker-compose up -d --build
 | `QDRANT_URL` | Yes | `http://qdrant:6333` (Docker) or Qdrant Cloud URL |
 | `QDRANT_API_KEY` | No | Leave blank for local Docker Qdrant |
 | `REDIS_URL` | Yes | `redis://redis:6379/0` (Docker) or local Redis |
+| `REDIS_QUOTA_STRICT` | No | When unset: strict in `ENV=production` (Redis errors deny LLM quotas). Set `false` for fail-open if Redis is optional. |
 | `SESSION_SECRET` | Yes | Any random string for session signing |
 | `ENV` | No | `development` or `production` |
 | `MODERATION_STRICT` | No | `false` (dev) / `true` (prod — fails closed on LLM errors) |
@@ -249,6 +250,20 @@ docker-compose up -d --build
 | `VAPI_WEBHOOK_SECRET` | No | Validates incoming Vapi webhook signatures |
 
 *At least one of `GEMINI_API_KEY` or `GROQ_API_KEY` is required.
+
+---
+
+### End-to-end UI tests (Playwright)
+
+From the repo root (requires Node 18+):
+
+```bash
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+Tests serve the static `frontend/` folder and **mock** `POST /api/search`, so no local backend is required.
 
 ---
 
