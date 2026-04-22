@@ -36,6 +36,17 @@ from backend.services.resilience import log_pipeline_step
 logger = logging.getLogger(__name__)
 
 
+async def _emit_stream_cache_hit(
+    stream_emit: Callable[[dict[str, object]], Awaitable[None]],
+    cached: dict[str, object],
+) -> None:
+    """So stream clients see a stable pattern: phase + optional single token, then complete."""
+    await stream_emit({"type": "phase", "name": "cache_hit"})
+    ans = cached.get("answer")
+    if isinstance(ans, str) and ans.strip():
+        await stream_emit({"type": "token", "text": ans})
+
+
 def _confidence_bucket(top_score: float) -> str:
     if top_score > 0.6:
         return "high"
@@ -91,6 +102,8 @@ async def execute_search(
         cached = await cache_service.get(clean_query, search_request.language)
         if cached:
             log_pipeline_step("cache", "hit", "")
+            if stream_emit is not None:
+                await _emit_stream_cache_hit(stream_emit, cached)
             cached["session_user_id"] = signed_user_id
             return SearchResponse(**cached)
 

@@ -125,6 +125,37 @@ def test_post_search_oversized_query_422():
     assert r.status_code == 422
 
 
+def test_search_stream_cache_hit_emits_phase_and_token(monkeypatch):
+    from backend.services import cache_service
+
+    async def _fake_get(_q: str, _lang: str):
+        return {
+            "answer": "cached answer text",
+            "provider": "redis-hit",
+            "sources": [],
+            "moderation_blocked": False,
+        }
+
+    monkeypatch.setattr(cache_service, "get", _fake_get)
+    with client.stream(
+        "POST",
+        "/api/search/stream",
+        json={"query": "stream cache smoke query", "language": "en-IN"},
+    ) as r:
+        assert r.status_code == 200
+        raw = b"".join(r.iter_bytes())
+    lines = [ln for ln in raw.decode("utf-8").strip().split("\n") if ln.strip()]
+    types_in_order = [json.loads(ln).get("type") for ln in lines]
+    assert types_in_order == ["meta", "phase", "token", "complete"]
+    phase = json.loads(lines[1])
+    assert phase == {"type": "phase", "name": "cache_hit"}
+    tok = json.loads(lines[2])
+    assert tok.get("type") == "token" and tok.get("text") == "cached answer text"
+    complete = json.loads(lines[-1])
+    assert complete.get("type") == "complete"
+    assert complete["data"].get("answer") == "cached answer text"
+
+
 def test_search_stream_returns_ndjson_meta_and_complete():
     # Fresh query each run avoids cache hits so we exercise LLM token streaming.
     with client.stream(
