@@ -177,6 +177,18 @@ def test_vapi_webhook_malformed_tool_calls_no_500(monkeypatch):
     assert "4" in ids
 
 
+def test_vapi_webhook_production_missing_secret_returns_503(monkeypatch):
+    from backend.routers import voice_router
+
+    monkeypatch.setattr(voice_router, "VAPI_WEBHOOK_SECRET", "")
+    monkeypatch.setattr(voice_router, "ENV", "production")
+    r = client.post("/vapi-webhook", json={"message": {"type": "assistant-request"}})
+    assert r.status_code == 503
+    detail = r.json().get("detail")
+    assert isinstance(detail, dict)
+    assert detail.get("error") == "webhook_secret_not_configured"
+
+
 def test_vapi_webhook_signed_invalid_json_400(monkeypatch):
     from backend.routers import voice_router
 

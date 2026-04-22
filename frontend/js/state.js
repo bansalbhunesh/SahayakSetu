@@ -1,6 +1,8 @@
 import { SESSION_USER_ID_KEY } from "./constants.js";
 
 export const appState = {
+    /** Prevents overlapping /api/search calls from double-submit or voice+text races. */
+    searchInFlight: false,
     vapiInstance: null,
     isVoiceCallActive: false,
     /** True when using Web Speech (not Vapi); used so Stop targets the right transport. */

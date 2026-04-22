@@ -24,6 +24,16 @@ except ModuleNotFoundError:  # pragma: no cover - local/dev test fallback
 
 from backend.config import HISTORY_WINDOW
 
+
+def _strict_quota_redis_fail() -> bool:
+    """When True, Redis errors deny quota (production default) instead of fail-open."""
+    raw = (os.getenv("REDIS_QUOTA_STRICT") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    return os.getenv("ENV", "development").strip().lower() == "production"
+
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(60 * 60 * 24)))
 def _safe_redis_url() -> str:
     raw = (os.getenv("REDIS_URL") or "").strip()
@@ -147,20 +157,30 @@ async def append(user_id: str, query: str, answer: str) -> None:
         logger.warning("session_append_failed", extra={"user_id": user_id[:24]}, exc_info=True)
 
 
-@_redis_safe((0, DAILY_LLM_CAP))
 async def increment_daily_llm_counter() -> tuple[int, int]:
-    """Returns (used_today, cap). Fail-open if Redis unavailable."""
-    count = await _client().incr("budget:llm:today")
-    if count == 1:
-        await _client().expire("budget:llm:today", 86400)
-    return int(count), DAILY_LLM_CAP
+    """Returns (used_today, cap). In production, Redis failure blocks LLM (fail-closed)."""
+    try:
+        count = await _client().incr("budget:llm:today")
+        if count == 1:
+            await _client().expire("budget:llm:today", 86400)
+        return int(count), DAILY_LLM_CAP
+    except Exception:
+        logger.warning("redis_unavailable", extra={"fn": "increment_daily_llm_counter"}, exc_info=True)
+        if _strict_quota_redis_fail():
+            return DAILY_LLM_CAP + 1, DAILY_LLM_CAP
+        return 0, DAILY_LLM_CAP
 
 
-@_redis_safe(True)
 async def check_user_llm_quota(user_id: str, daily_max: int = 100) -> bool:
-    """Returns True if user is under daily LLM cap (fail-open on Redis errors)."""
-    key = f"quota:llm:{user_id}"
-    count = await _client().incr(key)
-    if count == 1:
-        await _client().expire(key, 86400)
-    return int(count) <= daily_max
+    """Returns True if user is under daily LLM cap. In production, Redis errors deny (fail-closed)."""
+    try:
+        key = f"quota:llm:{user_id}"
+        count = await _client().incr(key)
+        if count == 1:
+            await _client().expire(key, 86400)
+        return int(count) <= daily_max
+    except Exception:
+        logger.warning("redis_unavailable", extra={"fn": "check_user_llm_quota"}, exc_info=True)
+        if _strict_quota_redis_fail():
+            return False
+        return True

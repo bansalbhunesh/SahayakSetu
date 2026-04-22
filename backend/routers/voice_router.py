@@ -21,7 +21,13 @@ router = APIRouter(tags=["voice"])
 def _verify_vapi_signature(request: Request, raw_body: bytes) -> None:
     if not VAPI_WEBHOOK_SECRET:
         if ENV == "production":
-            raise HTTPException(status_code=500, detail="Webhook secret not configured")
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "webhook_secret_not_configured",
+                    "message": "Set VAPI_WEBHOOK_SECRET in the server environment to accept Vapi webhooks.",
+                },
+            )
         return
     sig = (request.headers.get("x-vapi-signature") or "").strip()
     expected = hmac.new(VAPI_WEBHOOK_SECRET.encode("utf-8"), raw_body, "sha256").hexdigest()

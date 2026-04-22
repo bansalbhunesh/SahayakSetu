@@ -11,6 +11,33 @@ import {
 } from "./chat.js";
 import { appState, setSessionUserId } from "./state.js";
 
+const VAPI_SDK_MAX_ATTEMPTS = 60;
+let vapiSdkLoadAttempts = 0;
+
+async function userFacingHttpMessage(resp) {
+    const status = resp.status;
+    if (status === 429) {
+        return "Too many requests. Please wait a minute and try again.";
+    }
+    if (status === 503) {
+        return "The service is busy or temporarily unavailable. Please try again in a few minutes.";
+    }
+    if (status === 422) {
+        try {
+            const j = await resp.json();
+            const d = j.detail;
+            if (Array.isArray(d) && d.length) {
+                const parts = d.map((x) => (typeof x === "object" && x?.msg) || String(x));
+                return `Invalid input: ${parts.join("; ")}`;
+            }
+        } catch {
+            /* ignore */
+        }
+        return "Invalid request. Please shorten or simplify your question.";
+    }
+    return `Something went wrong (HTTP ${status}). Please try again.`;
+}
+
 function setVoiceLiveCaption(text) {
     const el = document.getElementById("voiceLiveCaption");
     if (!el) return;
@@ -188,6 +215,10 @@ function updateEvidencePanel(payload) {
 }
 
 async function submitQuery(query) {
+    if (appState.searchInFlight) {
+        return;
+    }
+    appState.searchInFlight = true;
     setStatusIndicator("Thinking...", "orange");
     showTypingIndicator();
     try {
@@ -202,7 +233,14 @@ async function submitQuery(query) {
             }),
         });
         removeTypingIndicator();
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+            const msg = await userFacingHttpMessage(resp);
+            throw new Error(msg);
+        }
+        const ct = (resp.headers.get("content-type") || "").toLowerCase();
+        if (!ct.includes("application/json")) {
+            throw new Error("Server returned an unexpected response. Please try again.");
+        }
         const payload = await resp.json();
         setSessionFromPayload(payload);
 
@@ -253,15 +291,18 @@ async function submitQuery(query) {
         } else {
             setStatusIndicator("Ready", "green");
         }
-    } catch {
+    } catch (err) {
         removeTypingIndicator();
-        appendMessageToChat(
-            "assistant",
-            "Sorry, there was an error connecting to SahayakSetu. Please try again.",
-            { variant: "error" },
-        );
+        const fallback = "Sorry, there was an error connecting to SahayakSetu. Please try again.";
+        let msg = err && typeof err.message === "string" && err.message.trim() ? err.message : fallback;
+        if (err instanceof SyntaxError) {
+            msg = "Invalid response from server. Please try again.";
+        }
+        appendMessageToChat("assistant", msg, { variant: "error" });
         setStatusIndicator("Error", "red");
         setTimeout(() => setStatusIndicator("Ready", "green"), 3000);
+    } finally {
+        appState.searchInFlight = false;
     }
 }
 
@@ -312,8 +353,14 @@ function initialiseVapiSDK() {
         if (window.Vapi) {
             appState.vapiInstance = new window.Vapi(VAPI_PUBLIC_KEY);
             bindVapiEventHandlers();
+            vapiSdkLoadAttempts = 0;
             setStatusIndicator("Ready", "green");
         } else {
+            vapiSdkLoadAttempts += 1;
+            if (vapiSdkLoadAttempts >= VAPI_SDK_MAX_ATTEMPTS) {
+                setStatusIndicator("Voice SDK unavailable", "yellow");
+                return;
+            }
             setTimeout(initialiseVapiSDK, 500);
         }
     } catch {
