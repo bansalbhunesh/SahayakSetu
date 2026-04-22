@@ -39,7 +39,13 @@ def _verify_vapi_signature(request: Request, raw_body: bytes) -> None:
 async def handle_vapi_webhook(request: Request):
     raw_body = await request.body()
     _verify_vapi_signature(request, raw_body)
-    webhook_body: dict[str, Any] = json.loads(raw_body)
+    try:
+        parsed = json.loads(raw_body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from None
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=400, detail="Webhook body must be a JSON object")
+    webhook_body: dict[str, Any] = parsed
     message = webhook_body.get("message", {})
 
     if message.get("type") == "assistant-request":
@@ -60,46 +66,70 @@ async def handle_vapi_webhook(request: Request):
 
     if message.get("type") == "tool-calls":
         tool_calls = message.get("toolCalls", [])
+        if not isinstance(tool_calls, list):
+            tool_calls = []
         results = []
         for call in tool_calls:
-            if call["function"]["name"] == "search_schemes":
-                args = json.loads(call["function"]["arguments"])
-                query_text = args.get("query", "")
-                query_text, suspicious = injection_guard.sanitize_query(query_text)
-                query_text, _ = pii_scrubber.scrub(query_text)
-                lang = args.get("language") or infer_bcp47(query_text)
-
-                if suspicious:
+            if not isinstance(call, dict):
+                continue
+            call_id = call.get("id") or "unknown"
+            fn = call.get("function")
+            if not isinstance(fn, dict):
+                continue
+            if fn.get("name") != "search_schemes":
+                continue
+            raw_args = fn.get("arguments", "{}")
+            if isinstance(raw_args, dict):
+                args = raw_args
+            else:
+                try:
+                    args = json.loads(str(raw_args) if raw_args is not None else "{}")
+                except json.JSONDecodeError:
                     results.append(
                         {
-                            "toolCallId": call["id"],
-                            "result": "Please ask a normal welfare-scheme question and avoid instruction-style prompts.",
+                            "toolCallId": call_id,
+                            "result": "Invalid tool arguments; please retry with a clear scheme question.",
                         }
                     )
                     continue
+            if not isinstance(args, dict):
+                args = {}
+            query_text = args.get("query", "")
+            query_text, suspicious = injection_guard.sanitize_query(query_text)
+            query_text, _ = pii_scrubber.scrub(query_text)
+            lang = args.get("language") or infer_bcp47(query_text)
 
-                moderation = await moderation_service.check(query_text, lang)
-                if not moderation.allowed:
-                    block_text = (
-                        moderation.redirect_message
-                        or "Please ask about Indian government schemes or civic services."
-                    )
-                    results.append({"toolCallId": call["id"], "result": block_text})
-                    continue
-
-                relevant_results, _near_miss_results, context, near_ctx = (
-                    retrieval_service.retrieve_for_rag(query_text, SIMILARITY_THRESHOLD)
-                )
-                context_parts = [context] if context.strip() else []
-                if near_ctx.strip():
-                    context_parts.append(near_ctx)
-                context = "\n\n".join(context_parts) if context_parts else ""
+            if suspicious:
                 results.append(
                     {
-                        "toolCallId": call["id"],
-                        "result": context or "Mujhe details nahi mili.",
+                        "toolCallId": call_id,
+                        "result": "Please ask a normal welfare-scheme question and avoid instruction-style prompts.",
                     }
                 )
+                continue
+
+            moderation = await moderation_service.check(query_text, lang)
+            if not moderation.allowed:
+                block_text = (
+                    moderation.redirect_message
+                    or "Please ask about Indian government schemes or civic services."
+                )
+                results.append({"toolCallId": call_id, "result": block_text})
+                continue
+
+            relevant_results, _near_miss_results, context, near_ctx = (
+                retrieval_service.retrieve_for_rag(query_text, SIMILARITY_THRESHOLD)
+            )
+            context_parts = [context] if context.strip() else []
+            if near_ctx.strip():
+                context_parts.append(near_ctx)
+            context = "\n\n".join(context_parts) if context_parts else ""
+            results.append(
+                {
+                    "toolCallId": call_id,
+                    "result": context or "Mujhe details nahi mili.",
+                }
+            )
         return JSONResponse(content={"results": results})
 
     return JSONResponse(content={})
