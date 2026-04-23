@@ -34,6 +34,7 @@ class SearchResponse(BaseModel):
     query_debug: dict | None = None
     plan: dict | None = None
     eligibility_hints: list[EligibilityHint] = Field(default_factory=list)
+    timing_ms: dict | None = None
 
 
 

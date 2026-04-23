@@ -525,6 +525,7 @@ export function appendMessageToChat(role, content, options = {}) {
     const reactionRow = document.createElement("div");
     reactionRow.className = "reaction-row";
     reactionRow.dataset.answer = (content || "").slice(0, 300);
+    reactionRow.dataset.query = ((options.queryDebug && options.queryDebug.original) || "").slice(0, 100);
     reactionRow.innerHTML = `<span class="reaction-label">Helpful?</span><button type="button" class="reaction-btn" data-action="react" data-value="up">👍</button><button type="button" class="reaction-btn" data-action="react" data-value="down">👎</button>`;
     wrap.appendChild(reactionRow);
 

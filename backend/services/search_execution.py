@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 
 from fastapi import HTTPException
@@ -103,6 +104,8 @@ async def execute_search(
     stream_emit: Callable[[dict[str, object]], Awaitable[None]] | None = None,
 ) -> SearchResponse:
     raw_user_id, signed_user_id = session_service.resolve_user_id(search_request.user_id)
+    _t0 = time.monotonic()
+    _t: dict[str, float] = {}
     try:
         log_pipeline_step("search", "start", "")
         raw_query = search_request.query or ""
@@ -123,6 +126,15 @@ async def execute_search(
         cached = await cache_service.get(clean_query, search_request.language)
         if cached:
             log_pipeline_step("cache", "hit", "")
+            logger.info(
+                "request_complete",
+                extra={
+                    "language": search_request.language,
+                    "provider": "cache",
+                    "cache_hit": True,
+                    "timing_ms": {"total_ms": round((time.monotonic() - _t0) * 1000)},
+                },
+            )
             if stream_emit is not None:
                 await _emit_stream_cache_hit(stream_emit, cached)
             cached["session_user_id"] = signed_user_id
@@ -183,6 +195,7 @@ async def execute_search(
                 or "Please ask about Indian government schemes or civic services.",
             )
         log_pipeline_step("moderation", "allowed", moderation.category or "ok")
+        _t["moderation_ms"] = round((time.monotonic() - _t0) * 1000)
 
         rewritten_query = rewritten_base
         if rewrite_task is not None:
@@ -222,6 +235,7 @@ async def execute_search(
                     boost_query=original_query,
                 )
             )
+            _t["retrieval_ms"] = round((time.monotonic() - _t0) * 1000)
             log_pipeline_step(
                 "retrieval",
                 "ok",
@@ -362,6 +376,7 @@ async def execute_search(
         else:
             raw_text, provider = await llm_service.generate(messages)
             answer_main, reasoning_why, near_miss_text = llm_service.parse_structured_response(raw_text)
+        _t["llm_ms"] = round((time.monotonic() - _t0) * 1000)
         log_pipeline_step("llm", "ok", provider or "")
 
         max_n = len(relevant_results)
@@ -391,6 +406,7 @@ async def execute_search(
                 relevant_results,
                 search_request.language,
             )
+            _t["plan_ms"] = round((time.monotonic() - _t0) * 1000)
 
         sources = [
             SchemeSource(
@@ -444,13 +460,31 @@ async def execute_search(
             plan=plan.model_dump() if plan is not None else None,
             eligibility_hints=eligibility_hints,
         )
+        _t["total_ms"] = round((time.monotonic() - _t0) * 1000)
+        response.timing_ms = _t
+
         cached_payload = response.model_dump()
         cached_payload.pop("session_user_id", None)
         cached_payload.pop("retrieval_debug", None)
         cached_payload.pop("query_debug", None)
         cached_payload.pop("plan", None)
         cached_payload.pop("eligibility_hints", None)
+        cached_payload.pop("timing_ms", None)
         await cache_service.set(clean_query, search_request.language, cached_payload)
+
+        logger.info(
+            "request_complete",
+            extra={
+                "language": search_request.language,
+                "provider": provider,
+                "cache_hit": False,
+                "sources_count": len(sources),
+                "confidence": _confidence_bucket(top_score),
+                "plan_included": search_request.include_plan,
+                "moderation_category": moderation.category,
+                "timing_ms": _t,
+            },
+        )
         log_pipeline_step("search", "complete", "ok")
         return response
     except HTTPException:

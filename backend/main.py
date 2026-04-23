@@ -22,7 +22,7 @@ from backend.config import (
 )
 from backend.logging_setup import setup_logging, trace_id_var
 from backend.rate_limit import limiter
-from backend.routers import health_router, search_router, voice_router
+from backend.routers import error_router, feedback_router, health_router, search_router, voice_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -73,6 +73,8 @@ def create_app() -> FastAPI:
     app.include_router(health_router.router)
     app.include_router(search_router.router)
     app.include_router(voice_router.router)
+    app.include_router(feedback_router.router)
+    app.include_router(error_router.router)
 
     @app.exception_handler(Exception)
     async def safe_exception_handler(request: Request, exc: Exception):

@@ -282,6 +282,37 @@ function triggerConfetti(btn) {
     setTimeout(() => burst.remove(), 800);
 }
 
+function _reportError(errorCode, queryPrefix = "") {
+    try {
+        fetch(`${BACKEND_URL}/api/error`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                error: errorCode,
+                trace_id: appState.lastTraceId,
+                language: appState.selectedLanguage,
+                query_prefix: (queryPrefix || "").slice(0, 50),
+            }),
+        }).catch(() => {}); // fire-and-forget, never throw
+    } catch (_) {}
+}
+
+async function _sendFeedback(value, queryPreview, answerPreview) {
+    try {
+        fetch(`${BACKEND_URL}/api/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                value,
+                trace_id: appState.lastTraceId,
+                session_user_id: appState.sessionUserId,
+                query_preview: (queryPreview || "").slice(0, 100),
+                answer_preview: (answerPreview || "").slice(0, 200),
+            }),
+        }).catch(() => {});
+    } catch (_) {}
+}
+
 async function submitQuery(query) {
     if (appState.searchInFlight) return;
     appState.searchInFlight = true;
@@ -292,6 +323,7 @@ async function submitQuery(query) {
     try {
         const resp = await fetch(`${BACKEND_URL}/api/search`, {
             method: "POST",
+            signal: AbortSignal.timeout(25000),
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 query,
@@ -309,6 +341,8 @@ async function submitQuery(query) {
         const ct = (resp.headers.get("content-type") || "").toLowerCase();
         if (!ct.includes("application/json")) throw new Error("Server returned an unexpected response. Please try again.");
         const payload = await resp.json();
+        // Always capture trace ID — needed for debug panel and error correlation.
+        appState.lastTraceId = resp.headers.get("X-Trace-Id") || null;
         setSessionFromPayload(payload);
 
         if (payload.moderation_blocked) {
@@ -340,7 +374,6 @@ async function submitQuery(query) {
         });
         if (payload.retrieval_debug) {
             appState.lastRetrievalDebug = payload.retrieval_debug;
-            appState.lastTraceId = resp.headers.get("X-Trace-Id") || "n/a";
             renderDebugDrawer();
         }
         sources.forEach((s) => s.scheme && appState.sessionSchemeNames.add(s.scheme));
@@ -364,12 +397,22 @@ async function submitQuery(query) {
     } catch (err) {
         removeTypingIndicator();
         const fallback = "Sorry, there was an error connecting to SahayakSetu. Please try again.";
-        let msg = err && typeof err.message === "string" && err.message.trim() ? err.message : fallback;
-        if (err instanceof SyntaxError) msg = "Invalid response from server. Please try again.";
+        let msg = fallback;
+        let errorCode = "fetch_failed";
+        if (err && err.name === "TimeoutError") {
+            msg = "The request timed out. The server may be starting up — please try again in a moment.";
+            errorCode = "timeout";
+        } else if (err instanceof SyntaxError) {
+            msg = "Invalid response from server. Please try again.";
+            errorCode = "parse_error";
+        } else if (err && typeof err.message === "string" && err.message.trim()) {
+            msg = err.message;
+        }
         appendMessageToChat("assistant", msg, { variant: "error" });
         setStatusIndicator("Error", "red");
         setVoiceState("idle");
         setTimeout(() => setStatusIndicator("Ready", "green"), 3000);
+        _reportError(errorCode, query);
     } finally {
         appState.searchInFlight = false;
     }
@@ -677,6 +720,7 @@ function wireDomEvents() {
             if (!row) return;
             row.querySelectorAll(".reaction-btn").forEach((b) => b.classList.remove("reaction-selected"));
             actionEl.classList.add("reaction-selected");
+            _sendFeedback(val, row.dataset.query || "", row.dataset.answer || "");
             if (val === "up") {
                 triggerConfetti(actionEl);
                 if (!row.querySelector(".reaction-wa-btn")) {

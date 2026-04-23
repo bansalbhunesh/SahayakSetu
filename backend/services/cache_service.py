@@ -32,9 +32,11 @@ async def get(query: str, language: str) -> dict[str, Any] | None:
     try:
         raw = await _client().get(_cache_key(query, language))
         if not raw:
+            await _client().incr("metric:cache:miss")
             return None
         payload = json.loads(raw)
         if isinstance(payload, dict):
+            await _client().incr("metric:cache:hit")
             return payload
         return None
     except Exception:
