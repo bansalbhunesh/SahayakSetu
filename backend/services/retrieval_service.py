@@ -169,6 +169,12 @@ _CATALOG_BOOST_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
         ),
         "pmkisan",
     ),
+    (re.compile(r"\bayushman\b|pmjay|pm[-\s]?jay|आयुष्मान", re.I), "ayushman bharat"),
+    (re.compile(r"\bujjwala\b|lpg\s+yojana|उज्ज्वला", re.I), "ujjwala yojana"),
+    (re.compile(r"\bmudra\b|pmmy|pm\s*mudra", re.I), "pm mudra yojana"),
+    (re.compile(r"\bsvanidhi\b|svAnidhi|street\s*vendor\s*loan", re.I), "pm svanidhi"),
+    (re.compile(r"\bvishwakarma\b|pm\s*vishwakarma|विश्वकर्मा", re.I), "pm vishwakarma"),
+    (re.compile(r"\bjan\s*dhan\b|pmjdy|जन\s*धन", re.I), "pm jan dhan yojana"),
 )
 
 
@@ -278,6 +284,29 @@ def _result_key(result: SearchResult) -> tuple[str, str]:
     return (result.scheme_name, result.document)
 
 
+_SYNONYM_MAP: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bpmkisan\b|pm[-\s]kisan\b", re.I), "PM Kisan Samman Nidhi"),
+    (re.compile(r"\bmgnrega\b|\bnrega\b", re.I), "Mahatma Gandhi Rural Employment Guarantee"),
+    (re.compile(r"\bayushman\b|\bpmjay\b", re.I), "Ayushman Bharat PM-JAY health insurance"),
+    (re.compile(r"\bujjwala\b", re.I), "Ujjwala Yojana LPG connection women BPL"),
+    (re.compile(r"\bmudra\b|\bpmmy\b", re.I), "MUDRA Micro Units Development Refinance Agency loan"),
+    (re.compile(r"\bsvanidhi\b", re.I), "PM SVANidhi street vendor working capital loan"),
+    (re.compile(r"\bvishwakarma\b", re.I), "PM Vishwakarma artisan craftsperson traditional trade"),
+    (re.compile(r"\bjan\s*dhan\b", re.I), "Jan Dhan PMJDY zero-balance bank account"),
+)
+
+
+def _expand_query_synonyms(query: str) -> str:
+    """Append canonical English terms for scheme abbreviations/Hindi names to improve recall."""
+    extras: list[str] = []
+    for pattern, expansion in _SYNONYM_MAP:
+        if pattern.search(query) and expansion.lower() not in query.lower():
+            extras.append(expansion)
+    if not extras:
+        return query
+    return f"{query} {' '.join(extras)}"
+
+
 def retrieve_for_rag(
     query: str,
     similarity_threshold: float,
@@ -290,7 +319,8 @@ def retrieve_for_rag(
     for near-miss / gap analysis (not above threshold or not in top-3 set).
     """
     candidate_limit = RAG_VECTOR_CANDIDATE_LIMIT if use_hybrid else RAG_VECTOR_QUERY_LIMIT
-    raw_results = search_schemes(query, limit=candidate_limit)
+    expanded_query = _expand_query_synonyms(query)
+    raw_results = search_schemes(expanded_query, limit=candidate_limit)
     boost_blob = f"{query}\n{boost_query or ''}"
     raw_results = merge_explicit_catalog_hits(boost_blob, raw_results)
     if use_hybrid:

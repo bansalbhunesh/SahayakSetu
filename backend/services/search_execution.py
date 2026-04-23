@@ -33,7 +33,28 @@ from backend.services import (
 )
 from backend.services.resilience import log_pipeline_step
 
+import re as _re
+
 logger = logging.getLogger(__name__)
+
+_PROFILE_INJECTION_RE = _re.compile(
+    r"(ignore|disregard).{0,30}(instruction|rule|prompt)|system\s*prompt|<\|.*\|>|<<<|>>>",
+    _re.IGNORECASE,
+)
+
+
+def _sanitize_profile(profile: dict) -> dict:
+    """Strip injection strings from user-supplied profile before injecting into LLM prompts."""
+    clean: dict = {}
+    for k, v in profile.items():
+        if isinstance(v, str):
+            s = v[:200]  # hard length cap
+            s = _PROFILE_INJECTION_RE.sub("", s).strip()
+            clean[k] = s
+        elif isinstance(v, (int, float, bool)) or v is None:
+            clean[k] = v
+        # drop unexpected types (lists, dicts) entirely
+    return clean
 
 
 async def _emit_stream_cache_hit(
@@ -361,7 +382,7 @@ async def execute_search(
         )
         await session_service.append(raw_user_id, original_query, session_text)
 
-        profile = agent_service.UserProfile(**(search_request.profile or {}))
+        profile = agent_service.UserProfile(**_sanitize_profile(search_request.profile or {}))
         plan = None
         if search_request.include_plan:
             plan = await agent_service.build_plan(

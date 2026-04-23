@@ -305,10 +305,19 @@ Produce a JSON object with:
 
 Rules:
 - Every eligibility row MUST use a valid source_id from SOURCES (S1 through S{max_label}).
-- Never invent amounts, dates, thresholds, or URLs.
+- Never invent amounts, dates, thresholds, or URLs not present in SOURCES.
 - If steps include a URL in where, copy it exactly from that source's apply or catalogue line.
-- If the profile is too incomplete for safe conclusions, set status=need_more_info and list unknown_criteria + clarifying_questions.
-- If SOURCES cannot support a plan, set status=insufficient_data with mostly empty lists.
 - Translate user-facing strings to TARGET LANGUAGE. Keep JSON keys and scheme names in English.
+
+Verdict selection (follow exactly):
+- "eligible": ALL hard eligibility criteria are explicitly confirmed by the profile.
+- "likely_eligible": most criteria met; only 1-2 minor or optional criteria unknown.
+- "likely_ineligible": at least one hard disqualifying criterion is clearly not met (e.g. income above limit, wrong gender, wrong state).
+- "unknown": a critical criterion (income, BPL card, land ownership, state, age) is absent from the profile — cannot determine without asking. Default to "unknown" when in doubt; never guess.
+
+Status:
+- plan_ready: profile has enough data for at least one eligible/likely_eligible verdict with action steps.
+- need_more_info: key criteria missing — list them in clarifying_questions.
+- insufficient_data: SOURCES too thin to generate any plan.
 Return ONLY JSON.
 """

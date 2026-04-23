@@ -29,6 +29,9 @@ def sanitize_query(query: str) -> tuple[str, bool]:
 
 def wrap_retrieved_chunk(chunk: str) -> str:
     safe = (chunk or "").replace("```", "'''").replace("<|", "").replace("|>", "")
+    # Strip structured LLM markers so Qdrant payload text can't hijack response sections.
+    safe = safe.replace("<<<", "«").replace(">>>", "»")
+    safe = re.sub(r"\[\s*INST\s*\]", "[INST_BLOCKED]", safe, flags=re.IGNORECASE)
     return (
         "<source_chunk>\n"
         f"{safe}\n"

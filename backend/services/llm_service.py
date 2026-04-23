@@ -665,9 +665,12 @@ async def generate_json_prompt(prompt: str) -> tuple[dict, str]:
 async def rewrite_query(query: str, language: str) -> str:
     """Query rewrite for retrieval recall. Fail-open to original query."""
     prompt = (
-        "Rewrite this user request into a precise government-scheme search query for India.\n"
-        "Preserve intent. Add useful retrieval hints like eligibility, benefits, documents, state if present.\n"
-        "Return only the rewritten query text (no quotes, no bullets).\n\n"
+        "Rewrite this short user query into a precise government-scheme search query for India.\n"
+        "Rules:\n"
+        "- If the query IS already a specific scheme name (PM Kisan, MGNREGA, Ayushman, Ujjwala, "
+        "Mudra, SVANidhi, PMAY, Jan Dhan, Vishwakarma, etc.), return it UNCHANGED.\n"
+        "- Otherwise expand: add eligibility context, benefits, documents, or state if present.\n"
+        "- Max 20 words. Return ONLY the rewritten query — no quotes, no bullets, no explanation.\n\n"
         f"Target language: {language}\n"
         f"User query: {query}"
     )
