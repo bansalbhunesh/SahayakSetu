@@ -1,4 +1,4 @@
-import { BACKEND_URL, INDIAN_STATES, USE_CONTINUOUS_VOICE, VAPI_ASSISTANT_ID, VAPI_PUBLIC_KEY } from "./constants.js";
+import { BACKEND_URL, INDIAN_STATES, LANGUAGE_FLAGS, LANGUAGE_LABELS, USE_CONTINUOUS_VOICE, VAPI_ASSISTANT_ID, VAPI_PUBLIC_KEY } from "./constants.js";
 import {
     appendMessageToChat,
     downloadConversationTranscript,
@@ -10,18 +10,35 @@ import {
     updateLanguageUI,
 } from "./chat.js";
 import { appState, setSessionUserId } from "./state.js";
+import {
+    setVoiceButtonState,
+    speakResponseText,
+    startBrowserSpeechFallback,
+    stopBrowserSpeechRecognition,
+} from "./voice.js";
 
 const VAPI_SDK_MAX_ATTEMPTS = 60;
 let vapiSdkLoadAttempts = 0;
 
+const SCHEME_ROLE_MAP = {
+    "pm kisan": "farmer",
+    "mgnrega": "farmer",
+    "rythu bharosa": "farmer",
+    "ayushman bharat": "below poverty line household",
+    "ujjwala yojana": "woman",
+    "sukanya samriddhi": "woman",
+    "gruha lakshmi": "woman",
+    "pm awas yojana": "below poverty line household",
+    "jan dhan yojana": "below poverty line household",
+    "pm mudra yojana": "artisan",
+    "pm vishwakarma": "artisan",
+    "pm svanidhi": "artisan",
+};
+
 async function userFacingHttpMessage(resp) {
     const status = resp.status;
-    if (status === 429) {
-        return "Too many requests. Please wait a minute and try again.";
-    }
-    if (status === 503) {
-        return "The service is busy or temporarily unavailable. Please try again in a few minutes.";
-    }
+    if (status === 429) return "Too many requests. Please wait a minute and try again.";
+    if (status === 503) return "The service is busy or temporarily unavailable. Please try again in a few minutes.";
     if (status === 422) {
         try {
             const j = await resp.json();
@@ -30,9 +47,7 @@ async function userFacingHttpMessage(resp) {
                 const parts = d.map((x) => (typeof x === "object" && x?.msg) || String(x));
                 return `Invalid input: ${parts.join("; ")}`;
             }
-        } catch {
-            /* ignore */
-        }
+        } catch { /* ignore */ }
         return "Invalid request. Please shorten or simplify your question.";
     }
     return `Something went wrong (HTTP ${status}). Please try again.`;
@@ -42,20 +57,44 @@ function setVoiceLiveCaption(text) {
     const el = document.getElementById("voiceLiveCaption");
     if (!el) return;
     const t = (text || "").trim();
-    if (!t) {
-        el.textContent = "";
-        el.classList.add("hidden");
-        return;
-    }
+    if (!t) { el.textContent = ""; el.classList.add("hidden"); return; }
     el.textContent = t;
     el.classList.remove("hidden");
 }
-import {
-    setVoiceButtonState,
-    speakResponseText,
-    startBrowserSpeechFallback,
-    stopBrowserSpeechRecognition,
-} from "./voice.js";
+
+function setVoiceState(state) {
+    const hint = document.getElementById("voiceHint");
+    const dbBar = document.getElementById("voiceDbBar");
+    if (state === "listening") {
+        if (hint) hint.textContent = "Listening… tap to stop";
+        if (dbBar) { dbBar.classList.remove("hidden"); dbBar.classList.add("listening-anim"); }
+    } else if (state === "thinking") {
+        if (hint) hint.textContent = "Processing your question…";
+        if (dbBar) { dbBar.classList.add("hidden"); dbBar.classList.remove("listening-anim"); }
+    } else if (state === "speaking") {
+        if (hint) hint.textContent = "Speaking your answer…";
+        if (dbBar) { dbBar.classList.add("hidden"); dbBar.classList.remove("listening-anim"); }
+    } else {
+        if (hint) hint.textContent = `Listening for: ${LANGUAGE_LABELS[appState.selectedLanguage] || appState.selectedLanguage}`;
+        if (dbBar) { dbBar.classList.add("hidden"); dbBar.classList.remove("listening-anim"); }
+    }
+}
+
+function openLangPopover() {
+    const popover = document.getElementById("langPopover");
+    const btn = document.getElementById("langChipBtn");
+    if (!popover || !btn) return;
+    popover.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+}
+
+function closeLangPopover() {
+    const popover = document.getElementById("langPopover");
+    const btn = document.getElementById("langChipBtn");
+    if (!popover || !btn) return;
+    popover.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+}
 
 function populateStateSelect() {
     const select = document.getElementById("finderState");
@@ -82,6 +121,8 @@ function setInteractionMode(mode) {
     finderPanel.setAttribute("aria-hidden", String(!showFinder));
     talkBtn.classList.toggle("active", !showFinder);
     finderBtn.classList.toggle("active", showFinder);
+    talkBtn.setAttribute("aria-selected", String(!showFinder));
+    finderBtn.setAttribute("aria-selected", String(showFinder));
 }
 
 function applyLanguageSelection(lang, el) {
@@ -89,6 +130,12 @@ function applyLanguageSelection(lang, el) {
     document.querySelectorAll(".lang-pill").forEach((pill) => pill.classList.remove("active"));
     if (el) el.classList.add("active");
     updateLanguageUI(lang);
+    const flag = document.getElementById("langChipFlag");
+    const label = document.getElementById("langChipLabel");
+    if (flag) flag.textContent = LANGUAGE_FLAGS[lang] || "🇮🇳";
+    if (label) label.textContent = LANGUAGE_LABELS[lang] || lang;
+    closeLangPopover();
+    setVoiceState("idle");
 }
 
 function incomeBandToAnnualIncome(incomeRaw) {
@@ -131,6 +178,8 @@ function handleEligibilitySubmit(event) {
     const income = document.querySelector('input[name="finderIncome"]:checked')?.value || "unspecified";
     appState.lastFinderProfile = buildProfileFromFinder();
     const query = `Show government welfare schemes for a ${role} in ${state} with annual family income ${income}. Summarise the most relevant central or state schemes and how to apply.`;
+    setInteractionMode("talk");
+    appendMessageToChat("user", query);
     submitQuery(query);
 }
 
@@ -140,20 +189,16 @@ function triggerSchemeQuery(query) {
 }
 
 function setSessionFromPayload(payload) {
-    if (payload.session_user_id) {
-        setSessionUserId(payload.session_user_id);
-    }
+    if (payload.session_user_id) setSessionUserId(payload.session_user_id);
 }
 
 function switchSidebarTab(tabName = "trust") {
-    const tabs = document.querySelectorAll('.sidebar-tab[data-tab]');
-    const panels = document.querySelectorAll('.sidebar-panel[data-panel]');
-    tabs.forEach((tab) => {
+    document.querySelectorAll('.sidebar-tab[data-tab]').forEach((tab) => {
         const active = tab.dataset.tab === tabName;
         tab.classList.toggle("active", active);
         tab.setAttribute("aria-selected", String(active));
     });
-    panels.forEach((panel) => {
+    document.querySelectorAll('.sidebar-panel[data-panel]').forEach((panel) => {
         panel.classList.toggle("active", panel.dataset.panel === tabName);
     });
 }
@@ -175,8 +220,7 @@ function updateEvidencePanel(payload) {
     if (!trustDot || !trustLabel || !trustHint || !queryUnderstanding || !evidenceList) return;
 
     const confidence = payload?.confidence || "low";
-    const confidenceLabel =
-        confidence === "high" ? "Verified signal" : confidence === "medium" ? "Partial signal" : "Needs clarification";
+    const confidenceLabel = confidence === "high" ? "Verified signal" : confidence === "medium" ? "Partial signal" : "Needs clarification";
     trustLabel.textContent = confidenceLabel;
     trustDot.dataset.level = confidence;
     trustHint.textContent = payload?.next_step || "Grounded answer generated from retrieved government scheme sources.";
@@ -214,12 +258,36 @@ function updateEvidencePanel(payload) {
     });
 }
 
-async function submitQuery(query) {
-    if (appState.searchInFlight) {
-        return;
+function triggerConfetti(btn) {
+    const colors = ["#ea7a1f", "#f2a33a", "#fde68a", "#2ecc71", "#5dade2", "#e74c3c"];
+    const burst = document.createElement("div");
+    burst.style.cssText = "position:absolute;top:50%;left:50%;pointer-events:none;z-index:50;";
+    for (let i = 0; i < 8; i++) {
+        const p = document.createElement("span");
+        const angle = (i / 8) * 360;
+        const dist = 28 + Math.random() * 18;
+        const tx = Math.round(Math.cos(angle * Math.PI / 180) * dist);
+        const ty = Math.round(Math.sin(angle * Math.PI / 180) * dist);
+        p.style.cssText = `
+            position:absolute;width:6px;height:6px;border-radius:50%;
+            background:${colors[i % colors.length]};
+            --tx:${tx}px;--ty:${ty}px;
+            animation:confetti-fly 0.65s ease-out forwards;
+        `;
+        burst.appendChild(p);
     }
+    const wrapper = btn.closest(".reaction-row") || btn;
+    wrapper.style.position = "relative";
+    wrapper.appendChild(burst);
+    setTimeout(() => burst.remove(), 800);
+}
+
+async function submitQuery(query) {
+    if (appState.searchInFlight) return;
     appState.searchInFlight = true;
+    localStorage.setItem("sahayak_last_query", query);
     setStatusIndicator("Thinking...", "orange");
+    setVoiceState("thinking");
     showTypingIndicator();
     try {
         const resp = await fetch(`${BACKEND_URL}/api/search`, {
@@ -238,9 +306,7 @@ async function submitQuery(query) {
             throw new Error(msg);
         }
         const ct = (resp.headers.get("content-type") || "").toLowerCase();
-        if (!ct.includes("application/json")) {
-            throw new Error("Server returned an unexpected response. Please try again.");
-        }
+        if (!ct.includes("application/json")) throw new Error("Server returned an unexpected response. Please try again.");
         const payload = await resp.json();
         setSessionFromPayload(payload);
 
@@ -253,6 +319,7 @@ async function submitQuery(query) {
             switchSidebarTab("evidence");
             pulseEvidenceTab();
             setStatusIndicator("Ready", "green");
+            setVoiceState("idle");
             return;
         }
 
@@ -284,22 +351,23 @@ async function submitQuery(query) {
 
         const canBrowserTts = !appState.vapiInstance || !appState.isVoiceCallActive;
         if (canBrowserTts && payload.answer) {
+            setVoiceState("speaking");
             speakResponseText(stripCitationMarkers(payload.answer), appState.selectedLanguage, {
                 onStart: () => setStatusIndicator("Speaking...", "blue"),
-                onEnd: () => setStatusIndicator("Ready", "green"),
+                onEnd: () => { setStatusIndicator("Ready", "green"); setVoiceState("idle"); },
             });
         } else {
             setStatusIndicator("Ready", "green");
+            setVoiceState("idle");
         }
     } catch (err) {
         removeTypingIndicator();
         const fallback = "Sorry, there was an error connecting to SahayakSetu. Please try again.";
         let msg = err && typeof err.message === "string" && err.message.trim() ? err.message : fallback;
-        if (err instanceof SyntaxError) {
-            msg = "Invalid response from server. Please try again.";
-        }
+        if (err instanceof SyntaxError) msg = "Invalid response from server. Please try again.";
         appendMessageToChat("assistant", msg, { variant: "error" });
         setStatusIndicator("Error", "red");
+        setVoiceState("idle");
         setTimeout(() => setStatusIndicator("Ready", "green"), 3000);
     } finally {
         appState.searchInFlight = false;
@@ -311,9 +379,7 @@ function renderDebugDrawer() {
     const trace = document.getElementById("debugTraceId");
     if (!host || !trace) return;
     trace.textContent = `Trace ID: ${appState.lastTraceId || "n/a"}`;
-    host.textContent = appState.lastRetrievalDebug
-        ? JSON.stringify(appState.lastRetrievalDebug, null, 2)
-        : "No retrieval debug payload yet.";
+    host.textContent = appState.lastRetrievalDebug ? JSON.stringify(appState.lastRetrievalDebug, null, 2) : "No retrieval debug payload yet.";
 }
 
 function toggleDebugDrawer(forceOpen = null) {
@@ -328,20 +394,32 @@ function toggleDebugDrawer(forceOpen = null) {
 function decorateSchemeCards() {
     document.querySelectorAll(".scheme-card").forEach((card) => {
         const trigger = card.querySelector(".scheme-card-trigger");
-        const ministry = trigger?.getAttribute("data-ministry") || "";
+        if (!trigger) return;
+        const ministry = trigger.getAttribute("data-ministry") || "";
         const lower = ministry.toLowerCase();
         if (lower.includes("finance")) card.dataset.ministry = "finance";
         else if (lower.includes("health")) card.dataset.ministry = "health";
         else if (lower.includes("housing") || lower.includes("urban")) card.dataset.ministry = "housing";
         else if (lower.includes("agriculture") || lower.includes("farm")) card.dataset.ministry = "agri";
         else card.dataset.ministry = "default";
+
+        const schemeName = (trigger.getAttribute("data-scheme") || "").toLowerCase();
+        const matchedRole = Object.entries(SCHEME_ROLE_MAP).find(([k]) => schemeName.includes(k))?.[1] || "farmer";
+        const eligBtn = document.createElement("button");
+        eligBtn.type = "button";
+        eligBtn.className = "scheme-check-eligibility";
+        eligBtn.dataset.action = "scheme-eligibility";
+        eligBtn.dataset.role = matchedRole;
+        eligBtn.dataset.scheme = trigger.getAttribute("data-scheme") || "";
+        eligBtn.textContent = "Check eligibility →";
+        card.appendChild(eligBtn);
     });
 }
 
 function handleTextSubmit() {
     const input = document.getElementById("textInput");
     const query = input?.value.trim();
-    if (!query) return;
+    if (!query || appState.searchInFlight) return;
     appendMessageToChat("user", query);
     input.value = "";
     submitQuery(query);
@@ -359,12 +437,16 @@ function initialiseVapiSDK() {
             vapiSdkLoadAttempts += 1;
             if (vapiSdkLoadAttempts >= VAPI_SDK_MAX_ATTEMPTS) {
                 setStatusIndicator("Voice SDK unavailable", "yellow");
+                const hint = document.getElementById("voiceHint");
+                if (hint) hint.textContent = "Voice active (browser fallback mode)";
                 return;
             }
             setTimeout(initialiseVapiSDK, 500);
         }
     } catch {
         setStatusIndicator("Voice unavailable", "yellow");
+        const hint = document.getElementById("voiceHint");
+        if (hint) hint.textContent = "Voice active (browser fallback mode)";
     }
 }
 
@@ -374,11 +456,13 @@ function bindVapiEventHandlers() {
         appState.isVoiceCallActive = true;
         appState.browserRecognitionActive = false;
         setVoiceButtonState(true);
+        setVoiceState("listening");
         setStatusIndicator("Listening...", "green");
     });
     appState.vapiInstance.on("call-end", () => {
         appState.isVoiceCallActive = false;
         setVoiceButtonState(false);
+        setVoiceState("idle");
         setStatusIndicator("Ready", "green");
     });
     appState.vapiInstance.on("message", (msg) => {
@@ -399,6 +483,7 @@ function handleVoiceToggle() {
         appState.browserRecognitionActive = false;
         setVoiceButtonState(false);
         setVoiceLiveCaption("");
+        setVoiceState("idle");
         setStatusIndicator("Ready", "green");
         return;
     }
@@ -416,6 +501,7 @@ function handleVoiceToggle() {
         onStart: () => {
             setStatusIndicator("Listening...", "green");
             setVoiceButtonState(true);
+            setVoiceState("listening");
             appState.isVoiceCallActive = true;
             appState.browserRecognitionActive = true;
             setVoiceLiveCaption("");
@@ -423,7 +509,8 @@ function handleVoiceToggle() {
         onStop: () => {
             setVoiceButtonState(false);
             setVoiceLiveCaption("");
-            setStatusIndicator("Ready", "green");
+            setVoiceState("thinking");
+            setStatusIndicator("Processing...", "orange");
             appState.isVoiceCallActive = false;
             appState.browserRecognitionActive = false;
         },
@@ -433,9 +520,7 @@ function handleVoiceToggle() {
         },
     });
     if (!started) {
-        appendMessageToChat("assistant", "Sorry, voice recognition is not supported in this browser.", {
-            variant: "error",
-        });
+        appendMessageToChat("assistant", "Sorry, voice recognition is not supported in this browser. Please type your question below.", { variant: "error" });
     }
 }
 
@@ -451,14 +536,8 @@ function openSchemeSheetFromButton(button) {
     const sourceUrl = button.getAttribute("data-source");
     const applyLink = document.getElementById("sheetApplyLink");
     const sourceLink = document.getElementById("sheetSourceLink");
-    if (applyLink) {
-        applyLink.classList.toggle("hidden", !applyUrl);
-        if (applyUrl) applyLink.href = applyUrl;
-    }
-    if (sourceLink) {
-        sourceLink.classList.toggle("hidden", !sourceUrl);
-        if (sourceUrl) sourceLink.href = sourceUrl;
-    }
+    if (applyLink) { applyLink.classList.toggle("hidden", !applyUrl); if (applyUrl) applyLink.href = applyUrl; }
+    if (sourceLink) { sourceLink.classList.toggle("hidden", !sourceUrl); if (sourceUrl) sourceLink.href = sourceUrl; }
 
     const sheet = document.getElementById("schemeSheet");
     sheet.classList.add("open");
@@ -481,6 +560,58 @@ function wireSchemeSheet() {
     };
 }
 
+function initSidebarSample() {
+    const evidenceList = document.getElementById("sidebarEvidenceList");
+    if (!evidenceList) return;
+    const samples = [
+        { scheme: "PM Kisan", score: 0.91 },
+        { scheme: "MGNREGA", score: 0.78 },
+    ];
+    evidenceList.innerHTML = "";
+    const lbl = document.createElement("p");
+    lbl.className = "sidebar-sample-label";
+    lbl.textContent = "Sample — ask a question for real results";
+    evidenceList.appendChild(lbl);
+    samples.forEach((s, idx) => {
+        const pct = Math.round(s.score * 100);
+        const row = document.createElement("div");
+        row.className = "sidebar-evidence-row";
+        row.innerHTML = `
+          <div class="sidebar-evidence-head">
+            <span class="sidebar-evidence-rank">#${idx + 1}</span>
+            <span class="sidebar-evidence-name">${s.scheme}</span>
+            <span class="sidebar-evidence-score">${pct}%</span>
+          </div>
+          <div class="sidebar-evidence-meter"><span style="width:${pct}%"></span></div>
+        `;
+        evidenceList.appendChild(row);
+    });
+}
+
+function initLastQueryBanner() {
+    const lastQuery = localStorage.getItem("sahayak_last_query");
+    if (!lastQuery) return;
+    const chat = document.getElementById("conversation");
+    if (!chat) return;
+    const banner = document.createElement("div");
+    banner.className = "last-query-banner";
+    const label = document.createElement("span");
+    label.className = "last-query-text";
+    label.textContent = `Last time: "${lastQuery.slice(0, 55)}${lastQuery.length > 55 ? "…" : ""}"`;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "last-query-link";
+    btn.textContent = "Ask again →";
+    btn.onclick = () => {
+        banner.remove();
+        appendMessageToChat("user", lastQuery);
+        submitQuery(lastQuery);
+    };
+    banner.appendChild(label);
+    banner.appendChild(btn);
+    chat.appendChild(banner);
+}
+
 function wireDomEvents() {
     const form = document.getElementById("eligibilityForm");
     form?.addEventListener("submit", handleEligibilitySubmit);
@@ -492,6 +623,14 @@ function wireDomEvents() {
     document.addEventListener("click", (event) => {
         const target = event.target;
         if (!(target instanceof Element)) return;
+
+        // Close lang popover on outside click
+        const popover = document.getElementById("langPopover");
+        const chipBtn = document.getElementById("langChipBtn");
+        if (popover && !popover.hidden && !popover.contains(target) && !chipBtn?.contains(target) && target !== chipBtn) {
+            closeLangPopover();
+        }
+
         const actionEl = target.closest("[data-action]");
         if (!(actionEl instanceof HTMLElement)) return;
         const action = actionEl.dataset.action;
@@ -505,24 +644,67 @@ function wireDomEvents() {
         if (action === "close-sheet") closeSchemeSheet();
         if (action === "close-debug") toggleDebugDrawer(false);
         if (action === "sidebar-tab") switchSidebarTab(actionEl.dataset.tab || "trust");
+        if (action === "toggle-lang") {
+            const p = document.getElementById("langPopover");
+            if (p?.hidden) openLangPopover(); else closeLangPopover();
+        }
         if (action === "select-language") {
             const lang = actionEl.dataset.lang;
             if (lang) applyLanguageSelection(lang, actionEl);
+        }
+        if (action === "example-query") {
+            const query = actionEl.dataset.query;
+            if (query && !appState.searchInFlight) {
+                setInteractionMode("talk");
+                appendMessageToChat("user", query);
+                submitQuery(query);
+                setTimeout(() => document.getElementById("conversation")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 80);
+            }
+        }
+        if (action === "scheme-eligibility") {
+            const role = actionEl.dataset.role || "farmer";
+            const scheme = actionEl.dataset.scheme || "";
+            setInteractionMode("finder");
+            const roleInput = document.querySelector(`input[name="finderRole"][value="${role}"]`);
+            if (roleInput) roleInput.checked = true;
+            document.getElementById("finderPanel")?.scrollIntoView({ behavior: "smooth" });
+            if (scheme) setStatusIndicator(`Checking ${scheme}…`, "orange");
+        }
+        if (action === "react") {
+            const val = actionEl.dataset.value;
+            const row = actionEl.closest(".reaction-row");
+            if (!row) return;
+            row.querySelectorAll(".reaction-btn").forEach((b) => b.classList.remove("reaction-selected"));
+            actionEl.classList.add("reaction-selected");
+            if (val === "up") {
+                triggerConfetti(actionEl);
+                if (!row.querySelector(".reaction-wa-btn")) {
+                    const answer = row.dataset.answer || "";
+                    const shareText = `SahayakSetu (सहायक सेतु) found this:\n\n${answer.slice(0, 200)}…\n\nAsk about govt schemes: https://sahayaksetu.vercel.app`;
+                    const wa = document.createElement("a");
+                    wa.className = "reaction-wa-btn";
+                    wa.href = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+                    wa.target = "_blank";
+                    wa.rel = "noopener noreferrer";
+                    wa.textContent = "📱 Share";
+                    row.appendChild(wa);
+                }
+            }
         }
     });
 
     const input = document.getElementById("textInput");
     if (input) {
         input.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") handleTextSubmit();
+            if (e.key === "Enter" && !e.shiftKey) handleTextSubmit();
         });
     }
 
     document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
         anchor.addEventListener("click", (e) => {
             e.preventDefault();
-            const target = document.querySelector(anchor.getAttribute("href"));
-            if (target) target.scrollIntoView({ behavior: "smooth" });
+            const t = document.querySelector(anchor.getAttribute("href"));
+            if (t) t.scrollIntoView({ behavior: "smooth" });
         });
     });
 
@@ -531,7 +713,10 @@ function wireDomEvents() {
             event.preventDefault();
             toggleDebugDrawer();
         }
-        if (event.key === "Escape") toggleDebugDrawer(false);
+        if (event.key === "Escape") {
+            toggleDebugDrawer(false);
+            closeLangPopover();
+        }
     });
 }
 
@@ -542,16 +727,15 @@ function bootstrap() {
     wireDomEvents();
     decorateSchemeCards();
     switchSidebarTab("trust");
+    initSidebarSample();
+    initLastQueryBanner();
 
     if (window.speechSynthesis) {
-        window.speechSynthesis.onvoiceschanged = () => {
-            window.speechSynthesis.getVoices();
-        };
+        window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
     }
     applyLanguageSelection(
         appState.selectedLanguage,
-        document.querySelector(`.lang-pill[data-lang="${appState.selectedLanguage}"]`) ||
-            document.querySelector(".lang-pill"),
+        document.querySelector(`.lang-pill[data-lang="${appState.selectedLanguage}"]`) || document.querySelector(".lang-pill"),
     );
 }
 

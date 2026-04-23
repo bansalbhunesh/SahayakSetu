@@ -2160,3 +2160,265 @@ select:focus-visible {
         display: none;
     }
 }
+
+/* ─── Composer tabs (replaces header mode-toggle) ─── */
+.composer-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 999px;
+    border: 1px solid rgba(58, 42, 30, 0.2);
+    margin: 0 auto 20px;
+    width: fit-content;
+}
+.composer-tab {
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+}
+.composer-tab.active {
+    background: linear-gradient(135deg, rgba(234, 122, 31, 0.22), rgba(58, 42, 30, 0.12));
+    color: #f2a33a;
+    box-shadow: inset 0 0 0 1px rgba(234, 122, 31, 0.25);
+}
+
+/* ─── Language chip + popover ─── */
+.lang-chip-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 22px;
+}
+.lang-chip-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(234, 122, 31, 0.35);
+    background: rgba(234, 122, 31, 0.08);
+    color: #f2a33a;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+.lang-chip-display:hover {
+    background: rgba(234, 122, 31, 0.16);
+    border-color: rgba(234, 122, 31, 0.55);
+}
+.lang-chip-edit {
+    font-size: 0.72rem;
+    opacity: 0.55;
+    margin-left: 2px;
+}
+.lang-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background: rgba(13, 18, 30, 0.98);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    padding: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    box-shadow: var(--shadow-lg);
+    min-width: 260px;
+    backdrop-filter: blur(20px);
+}
+.lang-popover[hidden] { display: none; }
+
+/* ─── Voice dB bar ─── */
+.voice-db-bar {
+    width: 120px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 10px auto 0;
+    overflow: hidden;
+}
+.voice-db-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ea7a1f, #f2a33a);
+    width: 15%;
+}
+.voice-db-bar.listening-anim .voice-db-fill {
+    animation: db-pulse 0.7s ease-in-out infinite alternate;
+}
+@keyframes db-pulse {
+    0%  { width: 12%; }
+    100% { width: 88%; }
+}
+
+/* ─── Example query chips ─── */
+.example-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 14px;
+}
+.example-chip {
+    padding: 7px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(234, 122, 31, 0.3);
+    background: rgba(234, 122, 31, 0.06);
+    color: #f2a33a;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+}
+.example-chip:hover {
+    background: rgba(234, 122, 31, 0.15);
+    border-color: rgba(234, 122, 31, 0.55);
+    transform: translateY(-1px);
+}
+.example-chip:active { transform: scale(0.97); }
+
+/* ─── Reaction row (👍 👎 + WhatsApp) ─── */
+.reaction-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding-left: 2px;
+    flex-wrap: wrap;
+}
+.reaction-label {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+}
+.reaction-btn {
+    border: 1px solid var(--color-border);
+    background: rgba(11, 15, 26, 0.5);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.84rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    font-family: var(--font-body);
+    color: var(--color-text-muted);
+    position: relative;
+}
+.reaction-btn:hover {
+    background: rgba(234, 122, 31, 0.1);
+    border-color: rgba(234, 122, 31, 0.35);
+    transform: scale(1.1);
+}
+.reaction-btn.reaction-selected {
+    background: rgba(234, 122, 31, 0.18);
+    border-color: rgba(234, 122, 31, 0.5);
+    color: #f2a33a;
+}
+.reaction-wa-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(37, 211, 102, 0.4);
+    background: rgba(37, 211, 102, 0.08);
+    color: #25d366;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+    font-family: var(--font-body);
+    transition: background 0.15s ease;
+    cursor: pointer;
+    animation: msg-in 0.28s var(--ease-out) both;
+}
+.reaction-wa-btn:hover { background: rgba(37, 211, 102, 0.18); }
+
+/* ─── Confetti ─── */
+@keyframes confetti-fly {
+    0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+}
+
+/* ─── Last-query restore banner ─── */
+.last-query-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(234, 122, 31, 0.22);
+    background: rgba(234, 122, 31, 0.05);
+    margin-bottom: 10px;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    animation: msg-in 0.32s var(--ease-out) both;
+}
+.last-query-text {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.last-query-link {
+    flex-shrink: 0;
+    color: #f2a33a;
+    font-weight: 600;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    padding: 0;
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
+/* ─── Scheme card eligibility button ─── */
+.scheme-check-eligibility {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-top: 1px solid rgba(234, 122, 31, 0.18);
+    background: rgba(234, 122, 31, 0.05);
+    color: #f2a33a;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-body);
+    text-align: center;
+    transition: background 0.15s ease;
+}
+.scheme-check-eligibility:hover { background: rgba(234, 122, 31, 0.13); }
+
+/* ─── Sidebar sample label ─── */
+.sidebar-sample-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(234, 122, 31, 0.45);
+    margin-bottom: 6px;
+}
+
+/* ─── Conversation scroll floor (landscape mobile fix) ─── */
+.conversation-scroll { min-height: 160px; }
+
+@media (max-width: 600px) {
+    .composer-tabs { width: 100%; justify-content: center; }
+    .lang-popover { min-width: 200px; }
+    .example-chips { flex-direction: column; align-items: stretch; }
+    .example-chip { text-align: center; }
+}

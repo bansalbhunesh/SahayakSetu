@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20260421">
+    <link rel="stylesheet" href="style.css?v=20260424">
 </head>
 <body>
     <div class="bg-gradient" aria-hidden="true"></div>
@@ -24,10 +24,6 @@
                 </div>
             </div>
             <div class="header-actions">
-                <div class="mode-toggle" role="group" aria-label="Interaction mode">
-                    <button type="button" class="mode-btn active" id="modeTalkBtn" data-action="mode-talk">Talk</button>
-                    <button type="button" class="mode-btn" id="modeFinderBtn" data-action="mode-finder">Find Schemes</button>
-                </div>
                 <nav class="nav">
                     <a href="#features" class="nav-link">Features</a>
                     <a href="#schemes" class="nav-link">Schemes</a>
@@ -46,17 +42,28 @@
             <section class="hero">
                 <div class="hero-content talk-panel" id="talkPanel">
                     <div class="composer-surface">
+                        <div class="composer-tabs" role="tablist" aria-label="Interaction mode">
+                            <button type="button" class="composer-tab active" id="modeTalkBtn" data-action="mode-talk" role="tab" aria-selected="true">🎙 Talk</button>
+                            <button type="button" class="composer-tab" id="modeFinderBtn" data-action="mode-finder" role="tab" aria-selected="false">🔍 Find Schemes</button>
+                        </div>
                         <div class="hero-badge">🇮🇳 Multilingual Voice AI for Indian Welfare</div>
                         <h1 class="hero-title">Every Voice. <span class="gradient-text">Every Language.</span> One सेतु.</h1>
                         <p class="hero-subtitle">Ask about government schemes in your mother tongue. Instant, verified answers powered by Gemini 2.0 Flash.</p>
 
-                        <div class="language-selector" id="languageSelector">
-                            <button type="button" class="lang-pill active" data-action="select-language" data-lang="hi-IN"><span class="lang-check" aria-hidden="true">✓</span>हिन्दी</button>
-                            <button type="button" class="lang-pill" data-action="select-language" data-lang="kn-IN"><span class="lang-check" aria-hidden="true">✓</span>ಕನ್ನಡ</button>
-                            <button type="button" class="lang-pill" data-action="select-language" data-lang="ta-IN"><span class="lang-check" aria-hidden="true">✓</span>தமிழ்</button>
-                            <button type="button" class="lang-pill" data-action="select-language" data-lang="te-IN"><span class="lang-check" aria-hidden="true">✓</span>తెలుగు</button>
-                            <button type="button" class="lang-pill" data-action="select-language" data-lang="bn-IN"><span class="lang-check" aria-hidden="true">✓</span>বাংলা</button>
-                            <button type="button" class="lang-pill" data-action="select-language" data-lang="en-IN"><span class="lang-check" aria-hidden="true">✓</span>English</button>
+                        <div class="lang-chip-wrapper" id="langChipWrapper">
+                            <button type="button" class="lang-chip-display" id="langChipBtn" data-action="toggle-lang" aria-expanded="false" aria-haspopup="true" aria-label="Change language">
+                                <span id="langChipFlag">🇮🇳</span>
+                                <span id="langChipLabel">हिन्दी</span>
+                                <span class="lang-chip-edit" aria-hidden="true">✎</span>
+                            </button>
+                            <div class="lang-popover" id="langPopover" hidden>
+                                <button type="button" class="lang-pill active" data-action="select-language" data-lang="hi-IN"><span class="lang-check" aria-hidden="true">✓</span>हिन्दी</button>
+                                <button type="button" class="lang-pill" data-action="select-language" data-lang="kn-IN"><span class="lang-check" aria-hidden="true">✓</span>ಕನ್ನಡ</button>
+                                <button type="button" class="lang-pill" data-action="select-language" data-lang="ta-IN"><span class="lang-check" aria-hidden="true">✓</span>தமிழ்</button>
+                                <button type="button" class="lang-pill" data-action="select-language" data-lang="te-IN"><span class="lang-check" aria-hidden="true">✓</span>తెలుగు</button>
+                                <button type="button" class="lang-pill" data-action="select-language" data-lang="bn-IN"><span class="lang-check" aria-hidden="true">✓</span>বাংলা</button>
+                                <button type="button" class="lang-pill" data-action="select-language" data-lang="en-IN"><span class="lang-check" aria-hidden="true">✓</span>English</button>
+                            </div>
                         </div>
 
                         <div class="voice-section">
@@ -76,6 +83,9 @@
                             <p class="voice-label" id="voiceLabel">Talk</p>
                             <p class="voice-hint" id="voiceHint">Choose language and tap to speak</p>
                             <p class="voice-live-caption hidden" id="voiceLiveCaption" aria-live="polite"></p>
+                            <div class="voice-db-bar hidden" id="voiceDbBar" aria-hidden="true">
+                                <div class="voice-db-fill" id="voiceDbFill"></div>
+                            </div>
                         </div>
 
                         <div class="text-input-section">
@@ -83,6 +93,10 @@
                                 <input type="text" id="textInput" class="text-input" placeholder="Type in any language..." autocomplete="off" />
                                 <button class="send-btn" id="sendBtn" type="button" data-action="send-text" aria-label="Send"><span class="send-btn-icon" aria-hidden="true"></span></button>
                             </div>
+                        </div>
+                        <div class="example-chips">
+                            <button type="button" class="example-chip" data-action="example-query" data-query="I am a farmer in Karnataka. What government schemes am I eligible for?">Try: Farmer in Karnataka →</button>
+                            <button type="button" class="example-chip" data-action="example-query" data-query="What housing schemes are available for BPL families in India?">Try: Housing for BPL →</button>
                         </div>
                     </div>
                 </div>

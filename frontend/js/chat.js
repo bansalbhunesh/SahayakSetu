@@ -521,6 +521,13 @@ export function appendMessageToChat(role, content, options = {}) {
     if (next) wrap.appendChild(next);
     const plan = renderPlanPanel(options.plan);
     if (plan) wrap.appendChild(plan);
+
+    const reactionRow = document.createElement("div");
+    reactionRow.className = "reaction-row";
+    reactionRow.dataset.answer = (content || "").slice(0, 300);
+    reactionRow.innerHTML = `<span class="reaction-label">Helpful?</span><button type="button" class="reaction-btn" data-action="react" data-value="up">👍</button><button type="button" class="reaction-btn" data-action="react" data-value="down">👎</button>`;
+    wrap.appendChild(reactionRow);
+
     chat.appendChild(wrap);
     wrap.scrollIntoView({ behavior: "smooth", block: "end" });
 }
