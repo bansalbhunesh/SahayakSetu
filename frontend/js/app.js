@@ -298,6 +298,7 @@ async function submitQuery(query) {
                 user_id: appState.sessionUserId,
                 language: appState.selectedLanguage,
                 profile: getProfileForRequest(),
+                include_plan: true,
             }),
         });
         removeTypingIndicator();

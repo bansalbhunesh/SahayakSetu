@@ -8,6 +8,7 @@ class SearchRequest(BaseModel):
     user_id: str | None = Field(default=None, max_length=128)
     language: str = Field(default="hi-IN", min_length=2, max_length=16)
     profile: dict | None = None
+    include_plan: bool = Field(default=False)
 
     @field_validator("query")
     @classmethod

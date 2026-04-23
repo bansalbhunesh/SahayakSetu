@@ -107,21 +107,6 @@ async def execute_search(
             cached["session_user_id"] = signed_user_id
             return SearchResponse(**cached)
 
-        log_pipeline_step("moderation", "start", "")
-        moderation = await moderation_service.check(clean_query, search_request.language)
-        if not moderation.allowed:
-            log_pipeline_step("moderation", "blocked", moderation.category or "")
-            return SearchResponse(
-                answer=None,
-                provider=None,
-                sources=[],
-                moderation_blocked=True,
-                moderation_category=moderation.category,
-                redirect_message=moderation.redirect_message
-                or "Please ask about Indian government schemes or civic services.",
-            )
-        log_pipeline_step("moderation", "allowed", moderation.category or "ok")
-
         original_query = clean_query.strip()
         if len(original_query) > 300:
             guided_answer, guided_next_step = _guided_fallback(search_request.language)
@@ -144,15 +129,46 @@ async def execute_search(
         normalized_surface = language_service.normalize_hinglish(original_query)
         detected_lang = language_service.detect_language_code(normalized_surface or original_query)
         lang_register_hint = language_service.register_hint(detected_lang, search_request.language)
-
         qtype = _query_type(original_query)
         rewritten_base = (normalized_surface or original_query).strip() or original_query
         prefer_original_retrieval = language_service.prefer_original_for_retrieval(
             original_query, normalized_surface
         )
-        rewritten_query = rewritten_base
+
+        # Moderation and (speculative) query rewrite run in parallel to cut latency.
+        # Rewrite is cancelled+discarded when moderation blocks the query.
+        log_pipeline_step("moderation", "start", "")
+        mod_task = asyncio.create_task(
+            moderation_service.check(clean_query, search_request.language)
+        )
+        rewrite_task: asyncio.Task | None = None
         if len(rewritten_base.split()) <= 5 and not prefer_original_retrieval:
-            rewritten_query = await llm_service.rewrite_query(rewritten_base, search_request.language)
+            rewrite_task = asyncio.create_task(
+                llm_service.rewrite_query(rewritten_base, search_request.language)
+            )
+
+        moderation = await mod_task
+        if not moderation.allowed:
+            log_pipeline_step("moderation", "blocked", moderation.category or "")
+            if rewrite_task is not None:
+                rewrite_task.cancel()
+            return SearchResponse(
+                answer=None,
+                provider=None,
+                sources=[],
+                moderation_blocked=True,
+                moderation_category=moderation.category,
+                redirect_message=moderation.redirect_message
+                or "Please ask about Indian government schemes or civic services.",
+            )
+        log_pipeline_step("moderation", "allowed", moderation.category or "ok")
+
+        rewritten_query = rewritten_base
+        if rewrite_task is not None:
+            try:
+                rewritten_query = await rewrite_task
+            except (asyncio.CancelledError, Exception):
+                rewritten_query = rewritten_base
         # When prefer_original is True (query names a specific scheme in Latin script),
         # use the un-normalized original so catalog keyword search matches English documents.
         # Hinglish-normalized form has Devanagari tokens ("किसान") that won't match
@@ -346,12 +362,14 @@ async def execute_search(
         await session_service.append(raw_user_id, original_query, session_text)
 
         profile = agent_service.UserProfile(**(search_request.profile or {}))
-        plan = await agent_service.build_plan(
-            original_query,
-            profile,
-            relevant_results,
-            search_request.language,
-        )
+        plan = None
+        if search_request.include_plan:
+            plan = await agent_service.build_plan(
+                original_query,
+                profile,
+                relevant_results,
+                search_request.language,
+            )
 
         sources = [
             SchemeSource(
@@ -402,7 +420,7 @@ async def execute_search(
             ),
             retrieval_debug=retrieval_debug,
             query_debug=query_debug,
-            plan=plan.model_dump(),
+            plan=plan.model_dump() if plan is not None else None,
             eligibility_hints=eligibility_hints,
         )
         cached_payload = response.model_dump()

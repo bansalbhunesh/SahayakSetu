@@ -19,6 +19,11 @@ async def handle_ready():
     return snapshot
 
 
+@router.get("/ping")
+def handle_ping():
+    return "pong"
+
+
 @router.get("/")
 def handle_root():
     return {"status": "SahayakSetu Backend Online", "model": CHAT_MODEL}
