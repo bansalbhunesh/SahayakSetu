@@ -62,6 +62,9 @@ export function useVoice({ onTranscript }: UseVoiceOptions): UseVoiceReturn {
   const vapiBrokenRef = useRef(false);
   const vapiCallStartAtRef = useRef(0);
   const vapiGotTranscriptRef = useRef(false);
+  /** Accumulate all final transcripts within a single Vapi call so the user can
+   * pause mid-sentence. We submit once on call-end (Stop button or natural end). */
+  const vapiAccumulatedRef = useRef('');
 
   const selectedLanguage = useAppStore((s) => s.selectedLanguage);
   const setVoice = useAppStore((s) => s.setVoice);
@@ -123,6 +126,7 @@ export function useVoice({ onTranscript }: UseVoiceOptions): UseVoiceReturn {
       instance.on('call-start', () => {
         vapiCallStartAtRef.current = Date.now();
         vapiGotTranscriptRef.current = false;
+        vapiAccumulatedRef.current = '';
         setState('listening');
         setTransport('vapi');
         setVoice({ voiceState: 'listening', voiceTransport: 'vapi', voiceLiveCaption: '' });
@@ -133,6 +137,7 @@ export function useVoice({ onTranscript }: UseVoiceOptions): UseVoiceReturn {
         const duration = vapiCallStartAtRef.current
           ? Date.now() - vapiCallStartAtRef.current
           : 0;
+        const accumulated = vapiAccumulatedRef.current.trim();
         const shortAndSilent = duration > 0 && duration < 3000 && !vapiGotTranscriptRef.current;
         setState('idle');
         setTransport('none');
@@ -146,6 +151,11 @@ export function useVoice({ onTranscript }: UseVoiceOptions): UseVoiceReturn {
           if (!startBrowserRef.current?.()) {
             setStatus('Voice unavailable (check Vapi setup)', 'yellow');
           }
+          return;
+        }
+        if (accumulated) {
+          onTranscript(accumulated);
+          vapiAccumulatedRef.current = '';
         } else {
           setStatus('Ready', 'green');
         }
@@ -153,9 +163,14 @@ export function useVoice({ onTranscript }: UseVoiceOptions): UseVoiceReturn {
       instance.on('message', (msg: unknown) => {
         if (!msg || typeof msg !== 'object') return;
         const m = msg as { type?: string; transcriptType?: string; role?: string; transcript?: string };
+        // Accumulate final user segments instead of submitting each one. This lets the
+        // user pause mid-sentence without Deepgram's endpointing cutting them off —
+        // the full utterance is submitted only when the Stop button ends the call.
         if (m.type === 'transcript' && m.transcriptType === 'final' && m.role === 'user' && m.transcript) {
           vapiGotTranscriptRef.current = true;
-          onTranscript(m.transcript);
+          const next = (vapiAccumulatedRef.current + ' ' + m.transcript).trim();
+          vapiAccumulatedRef.current = next;
+          setVoice({ voiceLiveCaption: next });
         }
       });
       vapiRef.current = instance;

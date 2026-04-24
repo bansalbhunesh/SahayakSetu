@@ -24,5 +24,5 @@ export const env = {
   LAST_QUERY_KEY: 'sahayak_last_query',
   LANGUAGE_KEY: 'sahayak_language',
   REQUEST_TIMEOUT_MS: 25_000,
-  USE_CONTINUOUS_VOICE: false,
+  USE_CONTINUOUS_VOICE: true,
 } as const;
