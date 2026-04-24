@@ -29,6 +29,9 @@ QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-001").strip()
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
 ENV = os.getenv("ENV", "development").strip().lower()
 BACKEND_URL = os.getenv("BACKEND_URL", "https://sahayaksetu-backend-3kxl.onrender.com")
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://sahayak-setu.vercel.app")
@@ -110,8 +113,10 @@ if not QDRANT_URL:
     raise RuntimeError(
         "Missing required env vars. QDRANT_URL=MISSING"
     )
-if not (GEMINI_API_KEY or GROQ_API_KEY):
-    raise RuntimeError("Missing required env vars. Provide GEMINI_API_KEY or GROQ_API_KEY.")
+if not (GEMINI_API_KEY or GROQ_API_KEY or OPENROUTER_API_KEY):
+    raise RuntimeError(
+        "Missing required env vars. Provide OPENROUTER_API_KEY (preferred), or GEMINI_API_KEY / GROQ_API_KEY."
+    )
 
 qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY or None)
 qdrant_client.set_model(EMBEDDING_MODEL)
@@ -172,3 +177,14 @@ if GEMINI_API_KEY:
 groq_client: OpenAI | None = None
 if GROQ_API_KEY:
     groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+
+openrouter_client: OpenAI | None = None
+if OPENROUTER_API_KEY:
+    openrouter_client = OpenAI(
+        api_key=OPENROUTER_API_KEY,
+        base_url=OPENROUTER_BASE_URL,
+        default_headers={
+            "HTTP-Referer": FRONTEND_ORIGIN,
+            "X-Title": "SahayakSetu",
+        },
+    )

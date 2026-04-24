@@ -18,9 +18,11 @@ from backend.config import (
     API_RETRY_BASE_DELAY_S,
     API_RETRY_MAX_DELAY_S,
     MAX_PROMPT_CHARS,
+    OPENROUTER_MODEL,
     REWRITE_QUERY_TIMEOUT_S,
     gemini_model,
     groq_client,
+    openrouter_client,
 )
 from backend.services.resilience import async_retry, with_timeout
 from backend.prompts.system_prompt import SYSTEM_PROMPT
@@ -29,6 +31,10 @@ logger = logging.getLogger(__name__)
 MARK_ANSWER = "<<<ANSWER>>>"
 MARK_WHY = "<<<WHY_IT_FITS>>>"
 MARK_NEAR = "<<<NEAR_MISS>>>"
+
+
+def _openrouter_provider_label() -> str:
+    return f"openrouter/{OPENROUTER_MODEL}"
 
 STRUCTURED_SUFFIX = f"""
 ---
@@ -210,7 +216,23 @@ def compose_session_assistant_text(answer: str, why: str | None, near: str | Non
 
 
 async def run_moderation_raw_prompt(prompt: str) -> str:
-    """Async Gemini call for moderation JSON (short prompt text)."""
+    """OpenRouter-first call for moderation JSON (short prompt text)."""
+    if openrouter_client is not None:
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    openrouter_client.chat.completions.create,
+                    model=OPENROUTER_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1,
+                ),
+                timeout=10.0,
+            )
+            return (response.choices[0].message.content or "").strip()
+        except Exception as e:
+            logger.warning("openrouter_moderation_failed", extra={"error": str(e)[:200]})
+    if gemini_model is None:
+        raise RuntimeError("no_llm_configured_for_moderation")
     response = await asyncio.wait_for(
         asyncio.to_thread(gemini_model.generate_content, prompt),
         timeout=10.0,
@@ -248,6 +270,37 @@ def _trim_messages_for_budget(messages: list[dict], max_chars: int = MAX_PROMPT_
 
 async def generate(messages: list[dict]) -> tuple[str, str]:
     """Primary chat completion. Does not raise — returns a safe string if all providers fail."""
+
+    async def _openrouter_once() -> tuple[str, str]:
+        if openrouter_client is None:
+            raise RuntimeError("openrouter_unconfigured")
+        msgs = _trim_messages_for_budget(messages)
+        response = await with_timeout(
+            asyncio.to_thread(
+                openrouter_client.chat.completions.create,
+                model=OPENROUTER_MODEL,
+                messages=msgs,
+                temperature=0.1,
+            ),
+            seconds=LLM_CALL_TIMEOUT_S,
+            step="llm_generate_openrouter",
+        )
+        return (response.choices[0].message.content or "").strip(), _openrouter_provider_label()
+
+    if openrouter_client is not None:
+        try:
+            return await async_retry(
+                lambda: _openrouter_once(),
+                attempts=API_RETRY_ATTEMPTS,
+                base_delay=API_RETRY_BASE_DELAY_S,
+                max_delay=API_RETRY_MAX_DELAY_S,
+                step="llm_generate_openrouter",
+            )
+        except Exception as e:
+            logger.warning(
+                "openrouter_llm_failed",
+                extra={"provider": _openrouter_provider_label(), "error": str(e)[:200]},
+            )
 
     async def _gemini_once() -> tuple[str, str]:
         if gemini_model is None:
@@ -324,7 +377,52 @@ async def generate_stream(
     messages: list[dict[str, str]],
     on_token: Callable[[str], Awaitable[None]],
 ) -> tuple[str, str]:
-    """Stream chat completion from Gemini (primary) or Groq; tokens via ``on_token``."""
+    """Stream chat completion via OpenRouter (primary); falls back to Gemini / Groq."""
+
+    async def _openrouter_stream_once() -> tuple[str, str]:
+        if openrouter_client is None:
+            raise RuntimeError("openrouter_unconfigured")
+        msgs = _trim_messages_for_budget(messages)
+        q0: queue.Queue[str | BaseException | None] = queue.Queue()
+
+        def worker() -> None:
+            try:
+                stream = openrouter_client.chat.completions.create(
+                    model=OPENROUTER_MODEL,
+                    messages=msgs,
+                    temperature=0.1,
+                    stream=True,
+                )
+                for chunk in stream:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+                    piece = getattr(delta, "content", None) if delta else None
+                    if piece:
+                        q0.put(piece)
+            except BaseException as exc:
+                q0.put(exc)
+            finally:
+                q0.put(None)
+
+        threading.Thread(target=worker, daemon=True).start()
+        text = (await _pump_text_queue(q0, on_token, timeout_s=LLM_CALL_TIMEOUT_S)).strip()
+        return text, _openrouter_provider_label()
+
+    if openrouter_client is not None:
+        try:
+            return await async_retry(
+                lambda: _openrouter_stream_once(),
+                attempts=API_RETRY_ATTEMPTS,
+                base_delay=API_RETRY_BASE_DELAY_S,
+                max_delay=API_RETRY_MAX_DELAY_S,
+                step="llm_stream_openrouter",
+            )
+        except Exception as e:
+            logger.warning(
+                "openrouter_stream_failed",
+                extra={"provider": _openrouter_provider_label(), "error": str(e)[:200]},
+            )
 
     async def _gemini_stream_once() -> tuple[str, str]:
         if gemini_model is None:
@@ -454,6 +552,25 @@ async def generate_json(messages: list[dict]) -> tuple[dict, str]:
             raise ValueError("Structured response is not a JSON object")
         return data
 
+    if openrouter_client is not None:
+        try:
+            msgs = _trim_messages_for_budget(messages)
+            response = await with_timeout(
+                asyncio.to_thread(
+                    openrouter_client.chat.completions.create,
+                    model=OPENROUTER_MODEL,
+                    messages=msgs,
+                    response_format={"type": "json_object"},
+                    temperature=0.1,
+                ),
+                seconds=LLM_CALL_TIMEOUT_S,
+                step="llm_generate_json_openrouter",
+            )
+            data = _parse_dict(response.choices[0].message.content or "")
+            return data, _openrouter_provider_label()
+        except Exception as e:
+            logger.warning("openrouter_json_failed", extra={"error": str(e)[:200]})
+
     if gemini_model is not None:
         try:
             response = await with_timeout(
@@ -571,6 +688,32 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
             raise ValueError("agent plan response is not a JSON object")
         return data
 
+    if openrouter_client is not None:
+        try:
+            response = await with_timeout(
+                asyncio.to_thread(
+                    openrouter_client.chat.completions.create,
+                    model=OPENROUTER_MODEL,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You output only a single JSON object matching the welfare "
+                                "action-plan schema. No markdown, no commentary."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.15,
+                ),
+                seconds=AGENT_PLAN_CALL_TIMEOUT_S,
+                step="llm_agent_plan_openrouter",
+            )
+            return _parse_dict(response.choices[0].message.content or ""), _openrouter_provider_label()
+        except Exception as e:
+            logger.warning("openrouter_agent_plan_failed", extra={"error": str(e)[:200]})
+
     if gemini_model is not None:
         try:
             response = await with_timeout(
@@ -645,6 +788,19 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
 
 async def generate_json_prompt(prompt: str) -> tuple[dict, str]:
     """Single-prompt strict JSON generation helper."""
+    if openrouter_client is not None:
+        try:
+            response = await asyncio.to_thread(
+                openrouter_client.chat.completions.create,
+                model=OPENROUTER_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+            )
+            parsed = json.loads((response.choices[0].message.content or "{}").strip())
+            return (parsed if isinstance(parsed, dict) else {}), _openrouter_provider_label()
+        except Exception:
+            pass
     if gemini_model is None:
         return {}, CHAT_MODEL
     try:
@@ -674,6 +830,24 @@ async def rewrite_query(query: str, language: str) -> str:
         f"Target language: {language}\n"
         f"User query: {query}"
     )
+    if openrouter_client is not None:
+        try:
+            resp = await with_timeout(
+                asyncio.to_thread(
+                    openrouter_client.chat.completions.create,
+                    model=OPENROUTER_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1,
+                ),
+                seconds=REWRITE_QUERY_TIMEOUT_S,
+                step="rewrite_query_openrouter",
+            )
+            rewritten = (resp.choices[0].message.content or "").strip()
+            if rewritten:
+                return rewritten.splitlines()[0].strip()
+            return query
+        except Exception:
+            pass
     if gemini_model is None:
         return query
     try:
