@@ -63,6 +63,7 @@ function setVoiceLiveCaption(text) {
 }
 
 function setVoiceState(state) {
+    document.body?.setAttribute("data-voice-state", state || "idle");
     const hint = document.getElementById("voiceHint");
     const dbBar = document.getElementById("voiceDbBar");
     if (state === "listening") {
