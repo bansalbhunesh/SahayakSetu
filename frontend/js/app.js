@@ -314,9 +314,10 @@ async function _sendFeedback(value, queryPreview, answerPreview) {
 }
 
 async function submitQuery(query) {
-    if (appState.searchInFlight) return;
+    const q = (query == null ? "" : String(query)).trim();
+    if (!q || appState.searchInFlight) return;
     appState.searchInFlight = true;
-    localStorage.setItem("sahayak_last_query", query);
+    localStorage.setItem("sahayak_last_query", q);
     setStatusIndicator("Thinking...", "orange");
     setVoiceState("thinking");
     showTypingIndicator();
