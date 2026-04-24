@@ -1,5 +1,7 @@
 import { SESSION_USER_ID_KEY } from "./constants.js";
 
+const LANGUAGE_PREF_KEY = "sahayak_selected_language";
+
 export const appState = {
     /** Prevents overlapping /api/search calls from double-submit or voice+text races. */
     searchInFlight: false,
@@ -7,7 +9,7 @@ export const appState = {
     isVoiceCallActive: false,
     /** True when using Web Speech (not Vapi); used so Stop targets the right transport. */
     browserRecognitionActive: false,
-    selectedLanguage: "hi-IN",
+    selectedLanguage: localStorage.getItem(LANGUAGE_PREF_KEY) || "hi-IN",
     sessionUserId: localStorage.getItem(SESSION_USER_ID_KEY) || "",
     sessionSchemeNames: new Set(),
     currentSheetScheme: "",
@@ -22,4 +24,9 @@ export function setSessionUserId(id) {
     if (id) {
         localStorage.setItem(SESSION_USER_ID_KEY, id);
     }
+}
+
+export function setSelectedLanguage(lang) {
+    appState.selectedLanguage = lang || "hi-IN";
+    localStorage.setItem(LANGUAGE_PREF_KEY, appState.selectedLanguage);
 }

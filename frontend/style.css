@@ -2240,6 +2240,29 @@ select:focus-visible {
     backdrop-filter: blur(20px);
 }
 .lang-popover[hidden] { display: none; }
+.lang-inline-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: -6px 0 14px;
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+}
+.lang-inline-option {
+    border: 1px solid rgba(234, 122, 31, 0.25);
+    background: rgba(234, 122, 31, 0.06);
+    color: #f2a33a;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.lang-inline-option:hover {
+    background: rgba(234, 122, 31, 0.14);
+    border-color: rgba(234, 122, 31, 0.45);
+}
 
 /* ─── Voice dB bar ─── */
 .voice-db-bar {

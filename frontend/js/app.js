@@ -9,7 +9,7 @@ import {
     stripCitationMarkers,
     updateLanguageUI,
 } from "./chat.js";
-import { appState, setSessionUserId } from "./state.js";
+import { appState, setSelectedLanguage, setSessionUserId } from "./state.js";
 import {
     setVoiceButtonState,
     speakResponseText,
@@ -126,7 +126,7 @@ function setInteractionMode(mode) {
 }
 
 function applyLanguageSelection(lang, el) {
-    appState.selectedLanguage = lang;
+    setSelectedLanguage(lang);
     document.querySelectorAll(".lang-pill").forEach((pill) => pill.classList.remove("active"));
     if (el) el.classList.add("active");
     updateLanguageUI(lang);
@@ -136,6 +136,19 @@ function applyLanguageSelection(lang, el) {
     if (label) label.textContent = LANGUAGE_LABELS[lang] || lang;
     closeLangPopover();
     setVoiceState("idle");
+}
+
+function detectBrowserLanguage() {
+    const supported = new Set(Object.keys(LANGUAGE_LABELS));
+    const candidates = [...(navigator.languages || []), navigator.language]
+        .filter(Boolean)
+        .map((x) => String(x));
+    for (const raw of candidates) {
+        if (supported.has(raw)) return raw;
+        const base = `${raw.split("-")[0]}-IN`;
+        if (supported.has(base)) return base;
+    }
+    return "en-IN";
 }
 
 function incomeBandToAnnualIncome(incomeRaw) {
@@ -710,6 +723,12 @@ function wireDomEvents() {
             const lang = actionEl.dataset.lang;
             if (lang) applyLanguageSelection(lang, actionEl);
         }
+        if (action === "select-language-inline") {
+            const lang = actionEl.dataset.lang;
+            if (!lang) return;
+            const popoverPill = document.querySelector(`.lang-pill[data-lang="${lang}"]`);
+            applyLanguageSelection(lang, popoverPill instanceof HTMLElement ? popoverPill : null);
+        }
         if (action === "example-query") {
             const query = actionEl.dataset.query;
             if (query && !appState.searchInFlight) {
@@ -794,9 +813,11 @@ function bootstrap() {
     if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
     }
+    const hasSavedPref = Boolean(localStorage.getItem("sahayak_selected_language"));
+    const initialLang = hasSavedPref ? appState.selectedLanguage : detectBrowserLanguage();
     applyLanguageSelection(
-        appState.selectedLanguage,
-        document.querySelector(`.lang-pill[data-lang="${appState.selectedLanguage}"]`) || document.querySelector(".lang-pill"),
+        initialLang,
+        document.querySelector(`.lang-pill[data-lang="${initialLang}"]`) || document.querySelector(".lang-pill"),
     );
 }
 
