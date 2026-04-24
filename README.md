@@ -155,7 +155,7 @@ Use this if you prefer to run without Docker. You'll need Python 3.12+ and eithe
 ```bash
 git clone https://github.com/bansalbhunesh/SahayakSetu.git
 cd SahayakSetu
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
 
 #### 2. Set up Qdrant

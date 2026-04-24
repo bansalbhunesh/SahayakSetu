@@ -12,7 +12,7 @@ FRONTEND="$ROOT/frontend"
 
 if [ ! -d "$VENV" ]; then
   echo "✗ Python venv not found at $VENV"
-  echo "  Create it with: python3 -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt"
+  echo "  Create it with: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
   exit 1
 fi
 
