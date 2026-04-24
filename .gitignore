@@ -1,12 +1,24 @@
 # SahayakSetu Project Ignores
 
-# Environment
+# Environment (all variants — .env, .env.local, .env.backup, .env.*)
+# Negation keeps the committed example files tracked.
 .env
+.env.*
 *.env
+!.env.example
+!frontend/.env.example
 sahayak_env/
 venv/
+.venv/
 __pycache__/
 *.pyc
+
+# Logs (apps write to .backend.log, .frontend.log, .runtime/* at runtime)
+*.log
+.runtime/
+
+# Local-only assets / screenshots / design notes / scratch
+_local/
 
 # Data & Database
 qdrant_storage/
