@@ -1,10 +1,8 @@
 """Receives frontend error reports for server-side logging and correlation."""
 
-from __future__ import annotations
-
 import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
 from backend.rate_limit import limiter
@@ -21,9 +19,13 @@ class ErrorReport(BaseModel):
     query_prefix: str | None = Field(default=None, max_length=50)
 
 
-@router.post("/api/error")
+@router.post(
+    "/api/error",
+    summary="Record a client-side error report",
+    description="Fire-and-forget from the frontend error boundary / fetch wrappers.",
+)
 @limiter.limit("10/minute")
-async def handle_error_report(request: Request, body: ErrorReport):
+async def handle_error_report(request: Request, body: ErrorReport = Body(...)):
     logger.warning(
         "frontend_error",
         extra={

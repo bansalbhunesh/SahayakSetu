@@ -44,8 +44,41 @@ async def _lifespan(app: FastAPI):
     yield
 
 
+OPENAPI_DESCRIPTION = """
+Multilingual voice + text RAG API for Indian government welfare schemes.
+
+Endpoints fall into five groups:
+
+- **search** — POST `/api/search` (JSON) and `/api/search/stream` (NDJSON).
+- **health** — `/health`, `/ready`, `/ping`, `/` for liveness and readiness.
+- **voice** — `/vapi-webhook` receives Vapi assistant tool-call callbacks (HMAC-signed in production).
+- **feedback** — `POST /api/feedback` records 👍/👎 reactions with trace correlation.
+- **telemetry** — `POST /api/error` records client-side error reports.
+
+Every response carries an `X-Trace-Id` header. Pass it back via `X-Trace-Id` on
+subsequent requests for cross-request correlation. Error responses follow
+FastAPI's default `{"detail": ...}` shape.
+""".strip()
+
+OPENAPI_TAGS = [
+    {"name": "search", "description": "Primary RAG endpoints (JSON + NDJSON streaming)."},
+    {"name": "health", "description": "Liveness + readiness + lightweight keep-alive."},
+    {"name": "voice", "description": "Vapi assistant webhook. HMAC-signed in production."},
+    {"name": "feedback", "description": "User 👍/👎 reactions tied to trace IDs."},
+    {"name": "telemetry", "description": "Client-side error reports for observability."},
+]
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="SahayakSetu API", lifespan=_lifespan)
+    app = FastAPI(
+        title="SahayakSetu API",
+        version="1.0.0",
+        description=OPENAPI_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
+        contact={"name": "SahayakSetu", "url": "https://sahayaksetu.vercel.app"},
+        license_info={"name": "Proprietary — Hackblr 2026"},
+        lifespan=_lifespan,
+    )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

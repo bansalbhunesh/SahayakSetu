@@ -18,10 +18,15 @@ from backend.config import (
     API_RETRY_BASE_DELAY_S,
     API_RETRY_MAX_DELAY_S,
     MAX_PROMPT_CHARS,
+    OPENROUTER_MODEL,
     REWRITE_QUERY_TIMEOUT_S,
+    USE_OPENROUTER,
     gemini_model,
     groq_client,
+    openrouter_client,
 )
+from backend.logging_setup import trace_id_var
+from backend.services.llm_cost import log_usage
 from backend.services.resilience import async_retry, with_timeout
 from backend.prompts.system_prompt import SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
@@ -246,8 +251,48 @@ def _trim_messages_for_budget(messages: list[dict], max_chars: int = MAX_PROMPT_
     return out
 
 
+async def _openrouter_complete(messages: list[dict], task: str = "generation") -> tuple[str, str]:
+    """OpenRouter completion via OpenAI-compatible API. Raises on failure."""
+    if openrouter_client is None:
+        raise RuntimeError("openrouter_unconfigured")
+    msgs = _trim_messages_for_budget(messages)
+    response = await with_timeout(
+        asyncio.to_thread(
+            openrouter_client.chat.completions.create,
+            model=OPENROUTER_MODEL,
+            messages=msgs,
+            temperature=0.2,
+        ),
+        seconds=LLM_CALL_TIMEOUT_S,
+        step="llm_generate_openrouter",
+    )
+    text = (response.choices[0].message.content or "").strip()
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        log_usage(
+            model=OPENROUTER_MODEL,
+            task=task,
+            prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+            completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+            trace_id=trace_id_var.get(),
+        )
+    return text, f"openrouter/{OPENROUTER_MODEL}"
+
+
 async def generate(messages: list[dict]) -> tuple[str, str]:
     """Primary chat completion. Does not raise — returns a safe string if all providers fail."""
+
+    if USE_OPENROUTER and openrouter_client is not None:
+        try:
+            return await async_retry(
+                lambda: _openrouter_complete(messages, task="generation"),
+                attempts=API_RETRY_ATTEMPTS,
+                base_delay=API_RETRY_BASE_DELAY_S,
+                max_delay=API_RETRY_MAX_DELAY_S,
+                step="llm_generate_openrouter",
+            )
+        except Exception as e:
+            logger.warning("openrouter_primary_failed", extra={"error": str(e)[:200]})
 
     async def _gemini_once() -> tuple[str, str]:
         if gemini_model is None:

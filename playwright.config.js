@@ -1,18 +1,22 @@
 // @ts-check
-const { defineConfig } = require("@playwright/test");
+const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
-  testDir: "e2e",
-  timeout: 60_000,
+  testDir: './e2e',
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 2 : 0,
+  reporter: 'list',
   use: {
-    baseURL: "http://127.0.0.1:4173",
-    trace: "on-first-retry",
+    baseURL: 'http://localhost:4173',
+    trace: 'on-first-retry',
   },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  ],
   webServer: {
-    command: "npx serve frontend -l 4173",
-    url: "http://127.0.0.1:4173",
+    command: 'npm --prefix frontend run preview -- --port 4173 --strictPort',
+    url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

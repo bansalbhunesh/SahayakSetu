@@ -26,13 +26,21 @@ from backend.config import HISTORY_WINDOW
 
 
 def _strict_quota_redis_fail() -> bool:
-    """When True, Redis errors deny quota (production default) instead of fail-open."""
+    """When True, Redis errors deny quota (production default) instead of fail-open.
+
+    Auto-downgrades to fail-open when Redis is known-unreachable at startup — there
+    is no way to enforce a strict shared counter without the shared store, and
+    returning 503 on every request would be worse than skipping the quota gate.
+    """
     raw = (os.getenv("REDIS_QUOTA_STRICT") or "").strip().lower()
     if raw in ("0", "false", "no", "off"):
         return False
+    from backend.services.redis_health import is_reachable
     if raw in ("1", "true", "yes", "on"):
-        return True
-    return os.getenv("ENV", "development").strip().lower() == "production"
+        return is_reachable()
+    if os.getenv("ENV", "development").strip().lower() != "production":
+        return False
+    return is_reachable()
 
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(60 * 60 * 24)))
 def _safe_redis_url() -> str:

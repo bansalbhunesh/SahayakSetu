@@ -34,7 +34,30 @@ from backend.services import (
 )
 from backend.services.resilience import log_pipeline_step
 
+import json as _json
 import re as _re
+
+
+def _unwrap_json_answer(text: str) -> str | None:
+    """If the LLM returned a JSON envelope instead of marker-formatted prose, pull the
+    'answer' field out. Returns None when the text isn't a parseable JSON object or
+    has no usable answer field.
+    """
+    if not text:
+        return None
+    stripped = text.strip()
+    if not stripped.startswith("{") or not stripped.endswith("}"):
+        return None
+    try:
+        obj = _json.loads(stripped)
+    except Exception:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    ans = obj.get("answer")
+    if isinstance(ans, str) and ans.strip():
+        return ans.strip()
+    return None
 
 logger = logging.getLogger(__name__)
 
@@ -361,10 +384,28 @@ async def execute_search(
                 near_miss_text = (verified.near_miss or "").strip() or None
             except Exception as e:
                 logger.warning("llm_json_path_failed_falling_back", extra={"error": str(e)[:200]})
-                raw_text, provider = await llm_service.generate(messages)
+                # Rebuild messages in marker mode — reusing the JSON-mode messages causes
+                # the LLM to keep emitting JSON which parse_structured_response cannot unwrap.
+                marker_messages = llm_service.build_messages(
+                    original_query,
+                    context,
+                    history,
+                    search_request.language,
+                    near_miss_context=near_miss_context,
+                    citation_index_block=citation_index_block,
+                    source_index_block=source_index_block,
+                    json_mode=False,
+                    detected_query_language=detected_lang,
+                    language_register_hint=lang_register_hint,
+                )
+                raw_text, provider = await llm_service.generate(marker_messages)
                 answer_main, reasoning_why, near_miss_text = llm_service.parse_structured_response(
                     raw_text
                 )
+                # Last-resort safety net: if the model still returned a JSON object instead
+                # of marker-formatted prose, unwrap the `answer` field so users don't see
+                # raw JSON in the UI.
+                answer_main = _unwrap_json_answer(answer_main) or answer_main
         elif stream_emit is not None:
 
             async def _emit_token(t: str) -> None:

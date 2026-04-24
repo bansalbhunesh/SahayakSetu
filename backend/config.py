@@ -29,6 +29,11 @@ QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct").strip()
+OPENROUTER_REFERRER = os.getenv("OPENROUTER_REFERRER", "https://sahayaksetu.vercel.app").strip()
+OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "SahayakSetu").strip()
 ENV = os.getenv("ENV", "development").strip().lower()
 BACKEND_URL = os.getenv("BACKEND_URL", "https://sahayaksetu-backend-3kxl.onrender.com")
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://sahayak-setu.vercel.app")
@@ -37,22 +42,29 @@ ALLOWED_ORIGINS = [
     for origin in os.getenv("ALLOWED_ORIGINS", FRONTEND_ORIGIN).split(",")
     if origin.strip()
 ]
-ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"^https://[a-z0-9-]+\.vercel\.app$").strip()
+# Combined default regex: allow any localhost port (for local dev, including Vite's :5173
+# and preview :4173) AND any *.vercel.app deployment. Localhost origins cannot reach a
+# production deployment, so permitting them unconditionally is safe.
+ALLOWED_ORIGIN_REGEX = os.getenv(
+    "ALLOWED_ORIGIN_REGEX",
+    r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://[a-z0-9-]+\.vercel\.app$",
+).strip()
 
-# In development, automatically permit any localhost origin so the frontend
-# served by a local file server or dev server can reach the API without CORS errors.
-if ENV == "development":
-    _local_origins = [
-        "http://localhost:5500",
-        "http://127.0.0.1:5500",
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://localhost:8080",
-    ]
-    for _o in _local_origins:
-        if _o not in ALLOWED_ORIGINS:
-            ALLOWED_ORIGINS.append(_o)
-    ALLOWED_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+# Also keep common local origins in the explicit list so wildcard-less deployments still work.
+_local_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://localhost:8080",
+]
+for _o in _local_origins:
+    if _o not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(_o)
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
 VAPI_WEBHOOK_SECRET = os.getenv("VAPI_WEBHOOK_SECRET", "").strip()
 # Signed-body timestamp skew (seconds). Mitigates replay of very old captured payloads.
@@ -73,6 +85,8 @@ VAPI_WEBHOOK_REQUIRE_TIMESTAMP = _env_bool("VAPI_WEBHOOK_REQUIRE_TIMESTAMP", Fal
 # True enables structured JSON generation path for /api/search.
 # Default ON in production to keep grounding verifier active.
 LLM_JSON_MODE = _env_bool("LLM_JSON_MODE", ENV == "production")
+# Route the primary completion attempt through OpenRouter. Gemini/Groq remain as fallbacks.
+USE_OPENROUTER = _env_bool("USE_OPENROUTER", False) and bool(OPENROUTER_API_KEY)
 # Enable lightweight hybrid retrieval: vector score + keyword overlap blend.
 HYBRID_RETRIEVAL = _env_bool("HYBRID_RETRIEVAL", False)
 DEBUG_RETRIEVAL = _env_bool("DEBUG_RETRIEVAL", False)
@@ -172,3 +186,14 @@ if GEMINI_API_KEY:
 groq_client: OpenAI | None = None
 if GROQ_API_KEY:
     groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+
+openrouter_client: OpenAI | None = None
+if OPENROUTER_API_KEY:
+    openrouter_client = OpenAI(
+        api_key=OPENROUTER_API_KEY,
+        base_url=OPENROUTER_BASE_URL,
+        default_headers={
+            "HTTP-Referer": OPENROUTER_REFERRER,
+            "X-Title": OPENROUTER_APP_TITLE,
+        },
+    )

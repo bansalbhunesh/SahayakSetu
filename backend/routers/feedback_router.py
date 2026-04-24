@@ -1,11 +1,9 @@
 """Collects 👍/👎 reactions and stores them in Redis for quality monitoring."""
 
-from __future__ import annotations
-
 import logging
 import time
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
 from backend.rate_limit import limiter
@@ -26,9 +24,13 @@ class FeedbackRequest(BaseModel):
     query_preview: str | None = Field(default=None, max_length=100)
 
 
-@router.post("/api/feedback")
+@router.post(
+    "/api/feedback",
+    summary="Record user 👍/👎 reaction",
+    description="Stores last 1000 reactions in Redis sorted-set keyed to trace IDs.",
+)
 @limiter.limit("20/minute")
-async def handle_feedback(request: Request, body: FeedbackRequest):
+async def handle_feedback(request: Request, body: FeedbackRequest = Body(...)):
     try:
         member = "|".join([
             body.value,
