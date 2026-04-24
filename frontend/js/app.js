@@ -327,7 +327,7 @@ async function submitQuery(query) {
             signal: AbortSignal.timeout(25000),
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                query,
+                query: q,
                 user_id: appState.sessionUserId,
                 language: appState.selectedLanguage,
                 profile: getProfileForRequest(),
@@ -434,12 +434,14 @@ function toggleDebugDrawer(forceOpen = null) {
     const open = forceOpen === null ? !isOpen : Boolean(forceOpen);
     drawer.classList.toggle("open", open);
     drawer.setAttribute("aria-hidden", String(!open));
+    drawer.toggleAttribute("inert", !open);
 }
 
 function decorateSchemeCards() {
     document.querySelectorAll(".scheme-card").forEach((card) => {
         const trigger = card.querySelector(".scheme-card-trigger");
         if (!trigger) return;
+        const schemeLabel = (trigger.getAttribute("data-scheme") || "this scheme").trim();
         const ministry = trigger.getAttribute("data-ministry") || "";
         const lower = ministry.toLowerCase();
         if (lower.includes("finance")) card.dataset.ministry = "finance";
@@ -458,6 +460,15 @@ function decorateSchemeCards() {
         eligBtn.dataset.scheme = trigger.getAttribute("data-scheme") || "";
         eligBtn.textContent = "Check eligibility →";
         card.appendChild(eligBtn);
+
+        const applyAnchor = card.querySelector(".scheme-link-apply");
+        if (applyAnchor instanceof HTMLAnchorElement) {
+            applyAnchor.setAttribute("aria-label", `Apply now for ${schemeLabel}`);
+        }
+        const sourceAnchor = card.querySelector(".scheme-link-source");
+        if (sourceAnchor instanceof HTMLAnchorElement) {
+            sourceAnchor.setAttribute("aria-label", `Official information for ${schemeLabel}`);
+        }
     });
 }
 
@@ -587,12 +598,14 @@ function openSchemeSheetFromButton(button) {
     const sheet = document.getElementById("schemeSheet");
     sheet.classList.add("open");
     sheet.setAttribute("aria-hidden", "false");
+    sheet.removeAttribute("inert");
 }
 
 function closeSchemeSheet() {
     const sheet = document.getElementById("schemeSheet");
     sheet.classList.remove("open");
     sheet.setAttribute("aria-hidden", "true");
+    sheet.setAttribute("inert", "");
 }
 
 function wireSchemeSheet() {
@@ -775,6 +788,8 @@ function bootstrap() {
     switchSidebarTab("trust");
     initSidebarSample();
     initLastQueryBanner();
+    document.getElementById("schemeSheet")?.setAttribute("inert", "");
+    document.getElementById("debugDrawer")?.setAttribute("inert", "");
 
     if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };

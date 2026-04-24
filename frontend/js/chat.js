@@ -391,6 +391,10 @@ function appendAssistantSourceLinks(container, sources, headingText) {
             a.className = "scheme-link scheme-link-apply";
             const isApply = s.cta_label === "Apply Now";
             a.textContent = isApply ? "🔗 Apply Now" : "🔍 Check Eligibility";
+            a.setAttribute(
+                "aria-label",
+                `${isApply ? "Apply now" : "Check eligibility"} for ${s.scheme || "this scheme"}`,
+            );
             links.appendChild(a);
         }
         if (s.source) {
@@ -400,6 +404,7 @@ function appendAssistantSourceLinks(container, sources, headingText) {
             b.rel = "noopener noreferrer";
             b.className = "scheme-link scheme-link-source";
             b.textContent = "📄 Official Info";
+            b.setAttribute("aria-label", `Official information for ${s.scheme || "this scheme"}`);
             links.appendChild(b);
         }
         row.appendChild(links);
