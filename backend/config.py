@@ -3,35 +3,18 @@
 from __future__ import annotations
 
 import os
-from typing import Any
 
 from dotenv import load_dotenv
 from openai import OpenAI
 from qdrant_client import QdrantClient
 
-try:
-    from google import genai as google_genai
-    from google.genai import types as google_genai_types
-except Exception:  # pragma: no cover - environment-dependent import
-    google_genai = None
-    google_genai_types = None
-
-legacy_genai = None
-if google_genai is None or google_genai_types is None:
-    try:
-        import google.generativeai as legacy_genai
-    except Exception:  # pragma: no cover - environment-dependent import
-        legacy_genai = None
-
 load_dotenv()
 
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct").strip()
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-001").strip()
 OPENROUTER_REFERRER = os.getenv("OPENROUTER_REFERRER", "https://sahayaksetu.vercel.app").strip()
 OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "SahayakSetu").strip()
 ENV = os.getenv("ENV", "development").strip().lower()
@@ -65,7 +48,6 @@ _local_origins = [
 for _o in _local_origins:
     if _o not in ALLOWED_ORIGINS:
         ALLOWED_ORIGINS.append(_o)
-CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-2.0-flash")
 VAPI_WEBHOOK_SECRET = os.getenv("VAPI_WEBHOOK_SECRET", "").strip()
 # Signed-body timestamp skew (seconds). Mitigates replay of very old captured payloads.
 VAPI_WEBHOOK_MAX_SKEW_S = int(os.getenv("VAPI_WEBHOOK_MAX_SKEW_S", "300"))
@@ -85,8 +67,6 @@ VAPI_WEBHOOK_REQUIRE_TIMESTAMP = _env_bool("VAPI_WEBHOOK_REQUIRE_TIMESTAMP", Fal
 # True enables structured JSON generation path for /api/search.
 # Default ON in production to keep grounding verifier active.
 LLM_JSON_MODE = _env_bool("LLM_JSON_MODE", ENV == "production")
-# Route the primary completion attempt through OpenRouter. Gemini/Groq remain as fallbacks.
-USE_OPENROUTER = _env_bool("USE_OPENROUTER", False) and bool(OPENROUTER_API_KEY)
 # Enable lightweight hybrid retrieval: vector score + keyword overlap blend.
 HYBRID_RETRIEVAL = _env_bool("HYBRID_RETRIEVAL", False)
 DEBUG_RETRIEVAL = _env_bool("DEBUG_RETRIEVAL", False)
@@ -121,79 +101,19 @@ MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "16000"))
 MAX_QUERY_CHARS = int(os.getenv("MAX_QUERY_CHARS", "600"))
 
 if not QDRANT_URL:
-    raise RuntimeError(
-        "Missing required env vars. QDRANT_URL=MISSING"
-    )
-if not (GEMINI_API_KEY or GROQ_API_KEY):
-    raise RuntimeError("Missing required env vars. Provide GEMINI_API_KEY or GROQ_API_KEY.")
+    raise RuntimeError("Missing required env vars. QDRANT_URL=MISSING")
+if not OPENROUTER_API_KEY:
+    raise RuntimeError("Missing required env vars. OPENROUTER_API_KEY=MISSING")
 
 qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY or None)
 qdrant_client.set_model(EMBEDDING_MODEL)
 
-class _GeminiAdapter:
-    """Unified generate_content adapter for google-genai and legacy SDK."""
-
-    def __init__(self, model: str, api_key: str):
-        self.model = model
-        self._mode = None
-        self._client: Any = None
-        self._legacy_model: Any = None
-        if google_genai is not None and google_genai_types is not None:
-            self._client = google_genai.Client(api_key=api_key)
-            self._mode = "google-genai"
-        elif legacy_genai is not None:
-            legacy_genai.configure(api_key=api_key)
-            self._legacy_model = legacy_genai.GenerativeModel(model)
-            self._mode = "legacy-generativeai"
-
-    def generate_content(self, prompt: str, generation_config: dict[str, Any] | None = None):
-        if self._mode == "google-genai":
-            cfg = google_genai_types.GenerateContentConfig(**(generation_config or {}))
-            return self._client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-                config=cfg,
-            )
-        if self._mode == "legacy-generativeai":
-            return self._legacy_model.generate_content(
-                prompt,
-                generation_config=generation_config,
-            )
-        raise RuntimeError("gemini_sdk_unavailable")
-
-    def generate_content_stream(self, prompt: str, generation_config: dict[str, Any] | None = None):
-        """Iterator of response chunks (incremental text in ``chunk.text`` where supported)."""
-        if self._mode == "google-genai":
-            cfg = google_genai_types.GenerateContentConfig(**(generation_config or {}))
-            return self._client.models.generate_content_stream(
-                model=self.model,
-                contents=prompt,
-                config=cfg,
-            )
-        if self._mode == "legacy-generativeai":
-            return self._legacy_model.generate_content(
-                prompt,
-                generation_config=generation_config,
-                stream=True,
-            )
-        raise RuntimeError("gemini_sdk_unavailable")
-
-
-gemini_model = None
-if GEMINI_API_KEY:
-    gemini_model = _GeminiAdapter(CHAT_MODEL, GEMINI_API_KEY)
-
-groq_client: OpenAI | None = None
-if GROQ_API_KEY:
-    groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
-
-openrouter_client: OpenAI | None = None
-if OPENROUTER_API_KEY:
-    openrouter_client = OpenAI(
-        api_key=OPENROUTER_API_KEY,
-        base_url=OPENROUTER_BASE_URL,
-        default_headers={
-            "HTTP-Referer": OPENROUTER_REFERRER,
-            "X-Title": OPENROUTER_APP_TITLE,
-        },
-    )
+openrouter_client = OpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url=OPENROUTER_BASE_URL,
+    max_retries=0,
+    default_headers={
+        "HTTP-Referer": OPENROUTER_REFERRER,
+        "X-Title": OPENROUTER_APP_TITLE,
+    },
+)

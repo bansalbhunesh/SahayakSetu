@@ -1,19 +1,16 @@
-"""Collects 👍/👎 reactions and stores them in Redis for quality monitoring."""
+"""Collects 👍/👎 reactions and stores them in MongoDB for quality monitoring."""
 
 import logging
-import time
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
 from backend.rate_limit import limiter
-from backend.services.session_service import _client as _redis
+from backend.services.mongo_service import db
 
 router = APIRouter(tags=["feedback"])
 logger = logging.getLogger(__name__)
-
-_FEEDBACK_KEY = "feedback:reactions"
-_MAX_STORED = 1000
 
 
 class FeedbackRequest(BaseModel):
@@ -27,22 +24,19 @@ class FeedbackRequest(BaseModel):
 @router.post(
     "/api/feedback",
     summary="Record user 👍/👎 reaction",
-    description="Stores last 1000 reactions in Redis sorted-set keyed to trace IDs.",
+    description="Stores reaction in MongoDB feedback collection for offline quality analysis.",
 )
 @limiter.limit("20/minute")
 async def handle_feedback(request: Request, body: FeedbackRequest = Body(...)):
     try:
-        member = "|".join([
-            body.value,
-            body.trace_id or "anon",
-            (body.query_preview or "")[:80],
-            (body.answer_preview or "")[:120],
-        ])
-        client = _redis()
-        pipe = client.pipeline()
-        pipe.zadd(_FEEDBACK_KEY, {member: time.time()})
-        pipe.zremrangebyrank(_FEEDBACK_KEY, 0, -(_MAX_STORED + 1))
-        await pipe.execute()
+        await db().feedback.insert_one({
+            "value": body.value,
+            "trace_id": body.trace_id,
+            "session_user_id": body.session_user_id,
+            "query_preview": (body.query_preview or "")[:100],
+            "answer_preview": (body.answer_preview or "")[:200],
+            "ts": datetime.now(timezone.utc),
+        })
         logger.info(
             "feedback_stored",
             extra={

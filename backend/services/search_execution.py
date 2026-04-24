@@ -21,7 +21,6 @@ from backend.models.request_models import SearchRequest
 from backend.models.response_models import EligibilityHint, SchemeSource, SearchResponse
 from backend.services import (
     agent_service,
-    cache_service,
     eligibility_service,
     grounding_service,
     injection_guard,
@@ -81,17 +80,6 @@ def _sanitize_profile(profile: dict) -> dict:
     return clean
 
 
-async def _emit_stream_cache_hit(
-    stream_emit: Callable[[dict[str, object]], Awaitable[None]],
-    cached: dict[str, object],
-) -> None:
-    """So stream clients see a stable pattern: phase + optional single token, then complete."""
-    await stream_emit({"type": "phase", "name": "cache_hit"})
-    ans = cached.get("answer")
-    if isinstance(ans, str) and ans.strip():
-        await stream_emit({"type": "token", "text": ans})
-
-
 def _confidence_bucket(top_score: float) -> str:
     if top_score > 0.6:
         return "high"
@@ -146,23 +134,6 @@ async def execute_search(
             )
 
         clean_query, pii_hits = pii_scrubber.scrub(safe_query)
-        cached = await cache_service.get(clean_query, search_request.language)
-        if cached:
-            log_pipeline_step("cache", "hit", "")
-            logger.info(
-                "request_complete",
-                extra={
-                    "language": search_request.language,
-                    "provider": "cache",
-                    "cache_hit": True,
-                    "timing_ms": {"total_ms": round((time.monotonic() - _t0) * 1000)},
-                },
-            )
-            if stream_emit is not None:
-                await _emit_stream_cache_hit(stream_emit, cached)
-            cached["session_user_id"] = signed_user_id
-            return SearchResponse(**cached)
-
         original_query = clean_query.strip()
         if len(original_query) > 300:
             guided_answer, guided_next_step = _guided_fallback(search_request.language)
@@ -343,17 +314,6 @@ async def execute_search(
                 query_debug=query_debug,
             )
 
-        used_today, daily_cap = await session_service.increment_daily_llm_counter()
-        if used_today > daily_cap:
-            raise HTTPException(
-                status_code=503,
-                detail="Service temporarily at capacity. Please try again later.",
-            )
-
-        quota_ok = await session_service.check_user_llm_quota(raw_user_id)
-        if not quota_ok:
-            raise HTTPException(status_code=429, detail="Daily limit reached. Try tomorrow.")
-
         history = await session_service.get_history(raw_user_id)
         use_json_llm = LLM_JSON_MODE and stream_emit is None
         messages = llm_service.build_messages(
@@ -504,21 +464,11 @@ async def execute_search(
         _t["total_ms"] = round((time.monotonic() - _t0) * 1000)
         response.timing_ms = _t
 
-        cached_payload = response.model_dump()
-        cached_payload.pop("session_user_id", None)
-        cached_payload.pop("retrieval_debug", None)
-        cached_payload.pop("query_debug", None)
-        cached_payload.pop("plan", None)
-        cached_payload.pop("eligibility_hints", None)
-        cached_payload.pop("timing_ms", None)
-        await cache_service.set(clean_query, search_request.language, cached_payload)
-
         logger.info(
             "request_complete",
             extra={
                 "language": search_request.language,
                 "provider": provider,
-                "cache_hit": False,
                 "sources_count": len(sources),
                 "confidence": _confidence_bucket(top_score),
                 "plan_included": search_request.include_plan,

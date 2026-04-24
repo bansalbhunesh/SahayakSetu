@@ -105,11 +105,23 @@ def _source_map(sources: list[SearchResult]) -> dict[str, SearchResult]:
     return {f"S{i+1}": src for i, src in enumerate(sources)}
 
 
+_FALLBACK_BY_LANG = {
+    "hi": "मेरे पास इस बारे में सत्यापित जानकारी नहीं है। कृपया आधिकारिक पोर्टल देखें या निकटतम CSC जाएं।",
+    "mr": "माझ्याकडे याबद्दल सत्यापित माहिती नाही. कृपया अधिकृत पोर्टल पहा किंवा जवळच्या CSC ला भेट द्या.",
+    "gu": "મારી પાસે આ વિશે ચકાસાયેલ માહિતી નથી. કૃપા કરીને અધિકૃત પોર્ટલ તપાસો અથવા નજીકના CSC ની મુલાકાત લો.",
+    "kn": "ಈ ಬಗ್ಗೆ ನನ್ನ ಬಳಿ ದೃಢೀಕೃತ ಮಾಹಿತಿ ಇಲ್ಲ. ದಯವಿಟ್ಟು ಅಧಿಕೃತ ಪೋರ್ಟಲ್ ಪರಿಶೀಲಿಸಿ ಅಥವಾ ಹತ್ತಿರದ CSC ಗೆ ಭೇಟಿ ನೀಡಿ.",
+    "ta": "இதைப் பற்றி என்னிடம் சரிபார்க்கப்பட்ட தகவல் இல்லை. அதிகாரப்பூர்வ போர்ட்டலைப் பார்க்கவும் அல்லது அருகிலுள்ள CSC-க்குச் செல்லவும்.",
+    "te": "దీని గురించి నా వద్ద ధృవీకరించబడిన సమాచారం లేదు. దయచేసి అధికారిక పోర్టల్‌ను చూడండి లేదా సమీప CSCని సందర్శించండి.",
+    "ml": "ഇതിനെക്കുറിച്ച് എന്റെ പക്കൽ സ്ഥിരീകരിച്ച വിവരങ്ങളില്ല. ദയവായി ഔദ്യോഗിക പോർട്ടൽ പരിശോധിക്കുക അല്ലെങ്കിൽ അടുത്തുള്ള CSC സന്ദർശിക്കുക.",
+    "bn": "এ বিষয়ে আমার কাছে যাচাইকৃত তথ্য নেই। অনুগ্রহ করে অফিসিয়াল পোর্টাল দেখুন বা নিকটবর্তী CSC-তে যান।",
+}
+
+
 def fallback_text_for_language(language: str) -> str:
-    lang = (language or "").lower()
-    if lang.startswith("hi"):
-        return "मेरे पास इस बारे में सत्यापित जानकारी नहीं है। कृपया आधिकारिक पोर्टल देखें या निकटतम CSC जाएं।"
-    return "I don't have verified information on this. Please check the official portal or visit your nearest CSC."
+    lang = (language or "").lower().split("-")[0]
+    return _FALLBACK_BY_LANG.get(lang) or (
+        "I don't have verified information on this. Please check the official portal or visit your nearest CSC."
+    )
 
 
 def verify(raw_llm_output: dict, sources: list[SearchResult], fallback_message: str) -> VerificationResult:

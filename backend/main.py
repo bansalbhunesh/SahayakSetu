@@ -13,16 +13,16 @@ from slowapi.errors import RateLimitExceeded
 from backend.config import (
     ALLOWED_ORIGINS,
     ALLOWED_ORIGIN_REGEX,
-    CHAT_MODEL,
     ENV,
     FRONTEND_ORIGIN,
-    GROQ_API_KEY,
     MODERATION_STRICT,
+    OPENROUTER_MODEL,
     QDRANT_URL,
 )
 from backend.logging_setup import setup_logging, trace_id_var
 from backend.rate_limit import limiter
 from backend.routers import error_router, feedback_router, health_router, search_router, voice_router
+from backend.services import mongo_service
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -32,9 +32,10 @@ logger = logging.getLogger(__name__)
 async def _lifespan(app: FastAPI):
     qdrant_preview = (QDRANT_URL or "")[:20] + ("..." if len(QDRANT_URL or "") > 20 else "")
     print("\n[STARTUP] SahayakSetu - Intelligence Activated")
-    print(f"   Primary: {CHAT_MODEL}")
-    print(f"   Fallback: {'Groq-Llama-3.3' if GROQ_API_KEY else 'None'}")
+    print(f"   LLM: openrouter/{OPENROUTER_MODEL}")
     print(f"   RAG: Qdrant @ {qdrant_preview}")
+    await mongo_service.ensure_indexes()
+    print(f"   Store: MongoDB ({mongo_service.MONGODB_DB})")
     print("   --- Policy ---")
     if MODERATION_STRICT:
         print("   MODERATION_STRICT: on (classifier errors -> block)")

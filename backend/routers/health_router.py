@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.config import CHAT_MODEL, SIMILARITY_THRESHOLD
+from backend.config import OPENROUTER_MODEL, SIMILARITY_THRESHOLD
 from backend.services.dependency_health import readiness_snapshot
 
 router = APIRouter(tags=["health"])
@@ -8,7 +8,7 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health", summary="Liveness probe", description="Returns active LLM model + retrieval threshold.")
 def handle_health():
-    return {"status": "online", "model": CHAT_MODEL, "threshold": SIMILARITY_THRESHOLD}
+    return {"status": "online", "model": OPENROUTER_MODEL, "threshold": SIMILARITY_THRESHOLD}
 
 
 @router.get(
@@ -31,4 +31,4 @@ def handle_ping():
 
 @router.get("/", summary="Service banner")
 def handle_root():
-    return {"status": "SahayakSetu Backend Online", "model": CHAT_MODEL}
+    return {"status": "SahayakSetu Backend Online", "model": OPENROUTER_MODEL}

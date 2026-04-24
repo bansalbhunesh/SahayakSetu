@@ -16,8 +16,8 @@ function flagEnabled(v: unknown, defaultValue: boolean): boolean {
 
 export const env = {
   BACKEND_URL: resolveBackendUrl(),
-  VAPI_PUBLIC_KEY: viteEnv.VITE_VAPI_PUBLIC_KEY ?? 'c0fcebfd-1570-4dfa-8b47-9280bfbaaaf8',
-  VAPI_ASSISTANT_ID: viteEnv.VITE_VAPI_ASSISTANT_ID ?? 'bd9bb2ff-9b1d-4f6a-86a2-11dfda391550',
+  VAPI_PUBLIC_KEY: viteEnv.VITE_VAPI_PUBLIC_KEY ?? '',
+  VAPI_ASSISTANT_ID: viteEnv.VITE_VAPI_ASSISTANT_ID ?? '',
   /** Set VITE_VAPI_ENABLED=false to skip Vapi entirely (browser SpeechRecognition only). */
   VAPI_ENABLED: flagEnabled(viteEnv.VITE_VAPI_ENABLED, true),
   SESSION_USER_ID_KEY: 'sahayak_session_user_id',

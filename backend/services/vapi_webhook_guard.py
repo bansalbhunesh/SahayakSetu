@@ -108,7 +108,7 @@ def assert_webhook_timestamp_fresh(
 
 
 def _webhook_dedupe_material(parsed: dict[str, Any] | None, raw_body: bytes) -> str:
-    """Single material string so one Redis NX covers id + body (no partial writes)."""
+    """Single material hash combining delivery id + body digest."""
     delivery_id = extract_webhook_delivery_id(parsed or {}) or ""
     body_digest = hashlib.sha256(raw_body).hexdigest()
     return hashlib.sha256(f"{delivery_id}\n{body_digest}".encode("utf-8")).hexdigest()
@@ -123,16 +123,19 @@ async def reserve_vapi_webhook_idempotency(
     """
     Returns True if this request should be processed, False on near-term replay.
 
-    Redis key combines optional stable delivery id (from signed JSON) with the
-    raw body digest so replays are blocked even when providers add fields.
+    Uses MongoDB webhook_nonces collection with unique _id — TTL index on `ts`
+    expires nonces after the replay window (configured in mongo_service.ensure_indexes).
     """
-    from backend.services.session_service import _client
+    from datetime import datetime, timezone
+    from pymongo.errors import DuplicateKeyError
+    from backend.services.mongo_service import db
 
     material = _webhook_dedupe_material(parsed, raw_body)
-    key = f"vapi:webhook:dedupe:{material}"
     try:
-        ok = await _client().set(key, "1", nx=True, ex=ttl_seconds)
-        return ok is True
+        await db().webhook_nonces.insert_one({"_id": material, "ts": datetime.now(timezone.utc)})
+        return True
+    except DuplicateKeyError:
+        return False
     except Exception:
-        logger.warning("vapi_webhook_dedupe_redis_failed", exc_info=True)
+        logger.warning("vapi_webhook_dedupe_mongo_failed", exc_info=True)
         return True
