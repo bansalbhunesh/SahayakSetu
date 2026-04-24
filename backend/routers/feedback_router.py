@@ -1,21 +1,16 @@
-"""Collects 👍/👎 reactions and stores them in Redis for quality monitoring."""
-
-from __future__ import annotations
+"""Collects 👍/👎 reactions and stores them in MongoDB for quality monitoring."""
 
 import logging
-import time
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
 from backend.rate_limit import limiter
-from backend.services.session_service import _client as _redis
+from backend.services.mongo_service import db
 
 router = APIRouter(tags=["feedback"])
 logger = logging.getLogger(__name__)
-
-_FEEDBACK_KEY = "feedback:reactions"
-_MAX_STORED = 1000
 
 
 class FeedbackRequest(BaseModel):
@@ -26,21 +21,22 @@ class FeedbackRequest(BaseModel):
     query_preview: str | None = Field(default=None, max_length=100)
 
 
-@router.post("/api/feedback")
+@router.post(
+    "/api/feedback",
+    summary="Record user 👍/👎 reaction",
+    description="Stores reaction in MongoDB feedback collection for offline quality analysis.",
+)
 @limiter.limit("20/minute")
-async def handle_feedback(request: Request, body: FeedbackRequest):
+async def handle_feedback(request: Request, body: FeedbackRequest = Body(...)):
     try:
-        member = "|".join([
-            body.value,
-            body.trace_id or "anon",
-            (body.query_preview or "")[:80],
-            (body.answer_preview or "")[:120],
-        ])
-        client = _redis()
-        pipe = client.pipeline()
-        pipe.zadd(_FEEDBACK_KEY, {member: time.time()})
-        pipe.zremrangebyrank(_FEEDBACK_KEY, 0, -(_MAX_STORED + 1))
-        await pipe.execute()
+        await db().feedback.insert_one({
+            "value": body.value,
+            "trace_id": body.trace_id,
+            "session_user_id": body.session_user_id,
+            "query_preview": (body.query_preview or "")[:100],
+            "answer_preview": (body.answer_preview or "")[:200],
+            "ts": datetime.now(timezone.utc),
+        })
         logger.info(
             "feedback_stored",
             extra={

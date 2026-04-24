@@ -21,7 +21,6 @@ from backend.models.request_models import SearchRequest
 from backend.models.response_models import EligibilityHint, SchemeSource, SearchResponse
 from backend.services import (
     agent_service,
-    cache_service,
     eligibility_service,
     grounding_service,
     injection_guard,
@@ -34,7 +33,30 @@ from backend.services import (
 )
 from backend.services.resilience import log_pipeline_step
 
+import json as _json
 import re as _re
+
+
+def _unwrap_json_answer(text: str) -> str | None:
+    """If the LLM returned a JSON envelope instead of marker-formatted prose, pull the
+    'answer' field out. Returns None when the text isn't a parseable JSON object or
+    has no usable answer field.
+    """
+    if not text:
+        return None
+    stripped = text.strip()
+    if not stripped.startswith("{") or not stripped.endswith("}"):
+        return None
+    try:
+        obj = _json.loads(stripped)
+    except Exception:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    ans = obj.get("answer")
+    if isinstance(ans, str) and ans.strip():
+        return ans.strip()
+    return None
 
 logger = logging.getLogger(__name__)
 
@@ -56,17 +78,6 @@ def _sanitize_profile(profile: dict) -> dict:
             clean[k] = v
         # drop unexpected types (lists, dicts) entirely
     return clean
-
-
-async def _emit_stream_cache_hit(
-    stream_emit: Callable[[dict[str, object]], Awaitable[None]],
-    cached: dict[str, object],
-) -> None:
-    """So stream clients see a stable pattern: phase + optional single token, then complete."""
-    await stream_emit({"type": "phase", "name": "cache_hit"})
-    ans = cached.get("answer")
-    if isinstance(ans, str) and ans.strip():
-        await stream_emit({"type": "token", "text": ans})
 
 
 def _confidence_bucket(top_score: float) -> str:
@@ -123,23 +134,6 @@ async def execute_search(
             )
 
         clean_query, pii_hits = pii_scrubber.scrub(safe_query)
-        cached = await cache_service.get(clean_query, search_request.language)
-        if cached:
-            log_pipeline_step("cache", "hit", "")
-            logger.info(
-                "request_complete",
-                extra={
-                    "language": search_request.language,
-                    "provider": "cache",
-                    "cache_hit": True,
-                    "timing_ms": {"total_ms": round((time.monotonic() - _t0) * 1000)},
-                },
-            )
-            if stream_emit is not None:
-                await _emit_stream_cache_hit(stream_emit, cached)
-            cached["session_user_id"] = signed_user_id
-            return SearchResponse(**cached)
-
         original_query = clean_query.strip()
         if len(original_query) > 300:
             guided_answer, guided_next_step = _guided_fallback(search_request.language)
@@ -320,17 +314,6 @@ async def execute_search(
                 query_debug=query_debug,
             )
 
-        used_today, daily_cap = await session_service.increment_daily_llm_counter()
-        if used_today > daily_cap:
-            raise HTTPException(
-                status_code=503,
-                detail="Service temporarily at capacity. Please try again later.",
-            )
-
-        quota_ok = await session_service.check_user_llm_quota(raw_user_id)
-        if not quota_ok:
-            raise HTTPException(status_code=429, detail="Daily limit reached. Try tomorrow.")
-
         history = await session_service.get_history(raw_user_id)
         use_json_llm = LLM_JSON_MODE and stream_emit is None
         messages = llm_service.build_messages(
@@ -361,10 +344,28 @@ async def execute_search(
                 near_miss_text = (verified.near_miss or "").strip() or None
             except Exception as e:
                 logger.warning("llm_json_path_failed_falling_back", extra={"error": str(e)[:200]})
-                raw_text, provider = await llm_service.generate(messages)
+                # Rebuild messages in marker mode — reusing the JSON-mode messages causes
+                # the LLM to keep emitting JSON which parse_structured_response cannot unwrap.
+                marker_messages = llm_service.build_messages(
+                    original_query,
+                    context,
+                    history,
+                    search_request.language,
+                    near_miss_context=near_miss_context,
+                    citation_index_block=citation_index_block,
+                    source_index_block=source_index_block,
+                    json_mode=False,
+                    detected_query_language=detected_lang,
+                    language_register_hint=lang_register_hint,
+                )
+                raw_text, provider = await llm_service.generate(marker_messages)
                 answer_main, reasoning_why, near_miss_text = llm_service.parse_structured_response(
                     raw_text
                 )
+                # Last-resort safety net: if the model still returned a JSON object instead
+                # of marker-formatted prose, unwrap the `answer` field so users don't see
+                # raw JSON in the UI.
+                answer_main = _unwrap_json_answer(answer_main) or answer_main
         elif stream_emit is not None:
 
             async def _emit_token(t: str) -> None:
@@ -463,21 +464,11 @@ async def execute_search(
         _t["total_ms"] = round((time.monotonic() - _t0) * 1000)
         response.timing_ms = _t
 
-        cached_payload = response.model_dump()
-        cached_payload.pop("session_user_id", None)
-        cached_payload.pop("retrieval_debug", None)
-        cached_payload.pop("query_debug", None)
-        cached_payload.pop("plan", None)
-        cached_payload.pop("eligibility_hints", None)
-        cached_payload.pop("timing_ms", None)
-        await cache_service.set(clean_query, search_request.language, cached_payload)
-
         logger.info(
             "request_complete",
             extra={
                 "language": search_request.language,
                 "provider": provider,
-                "cache_hit": False,
                 "sources_count": len(sources),
                 "confidence": _confidence_bucket(top_score),
                 "plan_included": search_request.include_plan,

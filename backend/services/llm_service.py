@@ -1,4 +1,4 @@
-"""LLM generation — Gemini primary, Groq fallback."""
+"""LLM generation — OpenRouter (OpenAI-compatible) for all paths."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ import threading
 from collections.abc import Awaitable, Callable
 
 from backend.config import (
-    CHAT_MODEL,
     AGENT_PLAN_CALL_TIMEOUT_S,
     LLM_CALL_TIMEOUT_S,
     API_RETRY_ATTEMPTS,
@@ -20,10 +19,10 @@ from backend.config import (
     MAX_PROMPT_CHARS,
     OPENROUTER_MODEL,
     REWRITE_QUERY_TIMEOUT_S,
-    gemini_model,
-    groq_client,
     openrouter_client,
 )
+from backend.logging_setup import trace_id_var
+from backend.services.llm_cost import log_usage
 from backend.services.resilience import async_retry, with_timeout
 from backend.prompts.system_prompt import SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
@@ -93,13 +92,16 @@ def build_messages(
             "Return strict JSON only with this schema:\n"
             "{"
             '"status":"ok|insufficient_context",'
-            '"answer":"string|null",'
+            '"answer":"string",'
             '"claims":[{"text":"string","source_id":"S1","span":"string"}],'
             '"next_step":"string|null",'
             '"why_it_fits":["string"],'
             '"near_miss":"string|null"'
             "}\n"
-            "If insufficient, return status=insufficient_context, answer=null, claims=[]."
+            "CRITICAL: The `answer` field is the user-facing reply and MUST ALWAYS be a non-empty string in TARGET_LANGUAGE. "
+            "`claims` is the supporting evidence (each claim is one fact + source_id) — it is SEPARATE from `answer` and does not replace it. "
+            "When status=ok, `answer` must summarize the relevant scheme(s) in 1–3 sentences and `claims` must list ≥1 fact grounded in SOURCES. "
+            "When status=insufficient_context, `claims=[]` and `answer` is a short apology in TARGET_LANGUAGE suggesting the official portal or CSC."
         )
     else:
         user_body = (
@@ -216,28 +218,17 @@ def compose_session_assistant_text(answer: str, why: str | None, near: str | Non
 
 
 async def run_moderation_raw_prompt(prompt: str) -> str:
-    """OpenRouter-first call for moderation JSON (short prompt text)."""
-    if openrouter_client is not None:
-        try:
-            response = await asyncio.wait_for(
-                asyncio.to_thread(
-                    openrouter_client.chat.completions.create,
-                    model=OPENROUTER_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,
-                ),
-                timeout=10.0,
-            )
-            return (response.choices[0].message.content or "").strip()
-        except Exception as e:
-            logger.warning("openrouter_moderation_failed", extra={"error": str(e)[:200]})
-    if gemini_model is None:
-        raise RuntimeError("no_llm_configured_for_moderation")
+    """Async OpenRouter call for moderation JSON (short prompt text)."""
     response = await asyncio.wait_for(
-        asyncio.to_thread(gemini_model.generate_content, prompt),
+        asyncio.to_thread(
+            openrouter_client.chat.completions.create,
+            model=OPENROUTER_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+        ),
         timeout=10.0,
     )
-    return (response.text or "").strip()
+    return (response.choices[0].message.content or "").strip()
 
 
 _DEGRADED_CHAT = (
@@ -268,83 +259,46 @@ def _trim_messages_for_budget(messages: list[dict], max_chars: int = MAX_PROMPT_
     return out
 
 
+async def _openrouter_complete(messages: list[dict], task: str = "generation") -> tuple[str, str]:
+    """OpenRouter completion via OpenAI-compatible API. Raises on failure."""
+    if openrouter_client is None:
+        raise RuntimeError("openrouter_unconfigured")
+    msgs = _trim_messages_for_budget(messages)
+    response = await with_timeout(
+        asyncio.to_thread(
+            openrouter_client.chat.completions.create,
+            model=OPENROUTER_MODEL,
+            messages=msgs,
+            temperature=0.2,
+        ),
+        seconds=LLM_CALL_TIMEOUT_S,
+        step="llm_generate_openrouter",
+    )
+    text = (response.choices[0].message.content or "").strip()
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        log_usage(
+            model=OPENROUTER_MODEL,
+            task=task,
+            prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+            completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+            trace_id=trace_id_var.get(),
+        )
+    return text, f"openrouter/{OPENROUTER_MODEL}"
+
+
 async def generate(messages: list[dict]) -> tuple[str, str]:
-    """Primary chat completion. Does not raise — returns a safe string if all providers fail."""
-
-    async def _openrouter_once() -> tuple[str, str]:
-        if openrouter_client is None:
-            raise RuntimeError("openrouter_unconfigured")
-        msgs = _trim_messages_for_budget(messages)
-        response = await with_timeout(
-            asyncio.to_thread(
-                openrouter_client.chat.completions.create,
-                model=OPENROUTER_MODEL,
-                messages=msgs,
-                temperature=0.1,
-            ),
-            seconds=LLM_CALL_TIMEOUT_S,
-            step="llm_generate_openrouter",
-        )
-        return (response.choices[0].message.content or "").strip(), _openrouter_provider_label()
-
-    if openrouter_client is not None:
-        try:
-            return await async_retry(
-                lambda: _openrouter_once(),
-                attempts=API_RETRY_ATTEMPTS,
-                base_delay=API_RETRY_BASE_DELAY_S,
-                max_delay=API_RETRY_MAX_DELAY_S,
-                step="llm_generate_openrouter",
-            )
-        except Exception as e:
-            logger.warning(
-                "openrouter_llm_failed",
-                extra={"provider": _openrouter_provider_label(), "error": str(e)[:200]},
-            )
-
-    async def _gemini_once() -> tuple[str, str]:
-        if gemini_model is None:
-            raise RuntimeError("gemini_unconfigured")
-        messages_budgeted = _trim_messages_for_budget(messages)
-        prompt_parts = [f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n"]
-        for msg in messages_budgeted:
-            if msg["role"] != "system":
-                role = "User" if msg["role"] == "user" else "Assistant"
-                prompt_parts.append(f"{role}: {msg['content']}")
-        full_prompt = "\n".join(prompt_parts)
-        response = await with_timeout(
-            asyncio.to_thread(gemini_model.generate_content, full_prompt),
-            seconds=LLM_CALL_TIMEOUT_S,
-            step="llm_generate_gemini",
-        )
-        return (response.text or "").strip(), CHAT_MODEL
-
+    """Primary chat completion. Does not raise — returns a safe string if OpenRouter fails."""
     try:
         return await async_retry(
-            lambda: _gemini_once(),
+            lambda: _openrouter_complete(messages, task="generation"),
             attempts=API_RETRY_ATTEMPTS,
             base_delay=API_RETRY_BASE_DELAY_S,
             max_delay=API_RETRY_MAX_DELAY_S,
-            step="llm_generate_gemini",
+            step="llm_generate_openrouter",
         )
     except Exception as e:
-        logger.warning("primary_llm_failed", extra={"provider": CHAT_MODEL, "error": str(e)[:200]})
-    if groq_client:
-        try:
-            response = await with_timeout(
-                asyncio.to_thread(
-                    groq_client.chat.completions.create,
-                    model="llama-3.3-70b-versatile",
-                    messages=_trim_messages_for_budget(messages),
-                    temperature=0.1,
-                ),
-                seconds=LLM_CALL_TIMEOUT_S,
-                step="llm_generate_groq",
-            )
-            return (response.choices[0].message.content or "").strip(), "groq-llama-3.3"
-        except Exception as ge:
-            logger.warning("llm_fallback_failed", extra={"error": str(ge)[:200]})
-    logger.error("llm_all_providers_failed")
+        logger.error("llm_openrouter_failed", extra={"error": str(e)[:200]})
     return _DEGRADED_CHAT, "unavailable"
 
 
@@ -377,20 +331,18 @@ async def generate_stream(
     messages: list[dict[str, str]],
     on_token: Callable[[str], Awaitable[None]],
 ) -> tuple[str, str]:
-    """Stream chat completion via OpenRouter (primary); falls back to Gemini / Groq."""
+    """Stream chat completion from OpenRouter; tokens via ``on_token``."""
 
-    async def _openrouter_stream_once() -> tuple[str, str]:
-        if openrouter_client is None:
-            raise RuntimeError("openrouter_unconfigured")
+    async def _stream_once() -> tuple[str, str]:
         msgs = _trim_messages_for_budget(messages)
-        q0: queue.Queue[str | BaseException | None] = queue.Queue()
+        q: queue.Queue[str | BaseException | None] = queue.Queue()
 
         def worker() -> None:
             try:
                 stream = openrouter_client.chat.completions.create(
                     model=OPENROUTER_MODEL,
                     messages=msgs,
-                    temperature=0.1,
+                    temperature=0.2,
                     stream=True,
                 )
                 for chunk in stream:
@@ -399,44 +351,7 @@ async def generate_stream(
                     delta = chunk.choices[0].delta
                     piece = getattr(delta, "content", None) if delta else None
                     if piece:
-                        q0.put(piece)
-            except BaseException as exc:
-                q0.put(exc)
-            finally:
-                q0.put(None)
-
-        threading.Thread(target=worker, daemon=True).start()
-        text = (await _pump_text_queue(q0, on_token, timeout_s=LLM_CALL_TIMEOUT_S)).strip()
-        return text, _openrouter_provider_label()
-
-    if openrouter_client is not None:
-        try:
-            return await async_retry(
-                lambda: _openrouter_stream_once(),
-                attempts=API_RETRY_ATTEMPTS,
-                base_delay=API_RETRY_BASE_DELAY_S,
-                max_delay=API_RETRY_MAX_DELAY_S,
-                step="llm_stream_openrouter",
-            )
-        except Exception as e:
-            logger.warning(
-                "openrouter_stream_failed",
-                extra={"provider": _openrouter_provider_label(), "error": str(e)[:200]},
-            )
-
-    async def _gemini_stream_once() -> tuple[str, str]:
-        if gemini_model is None:
-            raise RuntimeError("gemini_unconfigured")
-        full_prompt = _flatten_prompt(messages)
-        q: queue.Queue[str | BaseException | None] = queue.Queue()
-
-        def worker() -> None:
-            try:
-                stream = gemini_model.generate_content_stream(full_prompt)
-                for chunk in stream:
-                    text = getattr(chunk, "text", None) or ""
-                    if text:
-                        q.put(text)
+                        q.put(piece)
             except BaseException as exc:
                 q.put(exc)
             finally:
@@ -444,62 +359,18 @@ async def generate_stream(
 
         threading.Thread(target=worker, daemon=True).start()
         text = (await _pump_text_queue(q, on_token, timeout_s=LLM_CALL_TIMEOUT_S)).strip()
-        return text, CHAT_MODEL
+        return text, f"openrouter/{OPENROUTER_MODEL}"
 
     try:
         return await async_retry(
-            lambda: _gemini_stream_once(),
+            lambda: _stream_once(),
             attempts=API_RETRY_ATTEMPTS,
             base_delay=API_RETRY_BASE_DELAY_S,
             max_delay=API_RETRY_MAX_DELAY_S,
-            step="llm_stream_gemini",
+            step="llm_stream_openrouter",
         )
     except Exception as e:
-        logger.warning(
-            "primary_llm_stream_failed",
-            extra={"provider": CHAT_MODEL, "error": str(e)[:200]},
-        )
-    if groq_client:
-        try:
-
-            async def _groq_stream_once() -> tuple[str, str]:
-                msgs = _trim_messages_for_budget(messages)
-                q2: queue.Queue[str | BaseException | None] = queue.Queue()
-
-                def groq_worker() -> None:
-                    try:
-                        stream = groq_client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=msgs,
-                            temperature=0.1,
-                            stream=True,
-                        )
-                        for chunk in stream:
-                            if not chunk.choices:
-                                continue
-                            delta = chunk.choices[0].delta
-                            piece = getattr(delta, "content", None) if delta else None
-                            if piece:
-                                q2.put(piece)
-                    except BaseException as exc:
-                        q2.put(exc)
-                    finally:
-                        q2.put(None)
-
-                threading.Thread(target=groq_worker, daemon=True).start()
-                text = (await _pump_text_queue(q2, on_token, timeout_s=LLM_CALL_TIMEOUT_S)).strip()
-                return text, "groq-llama-3.3"
-
-            return await async_retry(
-                lambda: _groq_stream_once(),
-                attempts=API_RETRY_ATTEMPTS,
-                base_delay=API_RETRY_BASE_DELAY_S,
-                max_delay=API_RETRY_MAX_DELAY_S,
-                step="llm_stream_groq",
-            )
-        except Exception as ge:
-            logger.warning("llm_stream_fallback_failed", extra={"error": str(ge)[:200]})
-    logger.error("llm_stream_all_providers_failed")
+        logger.error("llm_stream_failed", extra={"error": str(e)[:200]})
     degraded = _DEGRADED_CHAT
     await on_token(degraded)
     return degraded, "unavailable"
@@ -520,31 +391,7 @@ def _flatten_prompt(messages: list[dict]) -> str:
 
 
 async def generate_json(messages: list[dict]) -> tuple[dict, str]:
-    """Structured response path for staged rollout."""
-    schema = {
-        "type": "object",
-        "properties": {
-            "status": {"type": "string", "enum": ["ok", "insufficient_context"]},
-            "answer": {"type": ["string", "null"]},
-            "next_step": {"type": ["string", "null"]},
-            "why_it_fits": {"type": "array", "items": {"type": "string"}},
-            "near_miss": {"type": ["string", "null"]},
-            "claims": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "text": {"type": "string"},
-                        "source_id": {"type": "string"},
-                        "span": {"type": "string"},
-                    },
-                    "required": ["text", "source_id"],
-                },
-            },
-        },
-        "required": ["status", "answer", "claims"],
-    }
-    prompt = _flatten_prompt(messages)
+    """Structured response path — OpenRouter JSON mode."""
 
     def _parse_dict(raw: str) -> dict:
         data = json.loads((raw or "").strip())
@@ -552,131 +399,24 @@ async def generate_json(messages: list[dict]) -> tuple[dict, str]:
             raise ValueError("Structured response is not a JSON object")
         return data
 
-    if openrouter_client is not None:
-        try:
-            msgs = _trim_messages_for_budget(messages)
-            response = await with_timeout(
-                asyncio.to_thread(
-                    openrouter_client.chat.completions.create,
-                    model=OPENROUTER_MODEL,
-                    messages=msgs,
-                    response_format={"type": "json_object"},
-                    temperature=0.1,
-                ),
-                seconds=LLM_CALL_TIMEOUT_S,
-                step="llm_generate_json_openrouter",
-            )
-            data = _parse_dict(response.choices[0].message.content or "")
-            return data, _openrouter_provider_label()
-        except Exception as e:
-            logger.warning("openrouter_json_failed", extra={"error": str(e)[:200]})
-
-    if gemini_model is not None:
-        try:
-            response = await with_timeout(
-                asyncio.to_thread(
-                    gemini_model.generate_content,
-                    prompt,
-                    generation_config={
-                        "response_mime_type": "application/json",
-                        "response_schema": schema,
-                        "temperature": 0.1,
-                    },
-                ),
-                seconds=LLM_CALL_TIMEOUT_S,
-                step="llm_generate_json_gemini",
-            )
-            data = _parse_dict(response.text or "")
-            return data, CHAT_MODEL
-        except Exception as e:
-            try:
-                response_retry = await with_timeout(
-                    asyncio.to_thread(
-                        gemini_model.generate_content,
-                        prompt,
-                        generation_config={
-                            "response_mime_type": "application/json",
-                            "response_schema": schema,
-                            "temperature": 0.0,
-                        },
-                    ),
-                    seconds=LLM_CALL_TIMEOUT_S,
-                    step="llm_generate_json_gemini_retry",
-                )
-                data_retry = _parse_dict(response_retry.text or "")
-                return data_retry, CHAT_MODEL
-            except Exception:
-                pass
-    else:
-        e = RuntimeError("gemini_unconfigured")
-    if not groq_client:
-        logger.warning("structured_json_degraded", extra={"error": str(e)[:200]})
-        return _insufficient_json_payload(), "unavailable"
+    msgs = _trim_messages_for_budget(messages)
     try:
         response = await with_timeout(
             asyncio.to_thread(
-                groq_client.chat.completions.create,
-                model="llama-3.3-70b-versatile",
-                messages=messages,
+                openrouter_client.chat.completions.create,
+                model=OPENROUTER_MODEL,
+                messages=msgs,
                 response_format={"type": "json_object"},
                 temperature=0.1,
             ),
             seconds=LLM_CALL_TIMEOUT_S,
-            step="llm_generate_json_groq",
+            step="llm_generate_json_openrouter",
         )
         data = _parse_dict(response.choices[0].message.content or "")
-        return data, "groq-llama-3.3"
-    except Exception as ge:
-        logger.warning("structured_llm_fallback_failed", extra={"error": str(ge)[:200]})
-    logger.warning("structured_json_degraded", extra={"error": str(e)[:200]})
+        return data, f"openrouter/{OPENROUTER_MODEL}"
+    except Exception as e:
+        logger.warning("structured_json_degraded", extra={"error": str(e)[:200]})
     return _insufficient_json_payload(), "unavailable"
-
-
-# Gemini JSON schema for welfare action-plan agent (grounding enforced downstream).
-AGENT_PLAN_RESPONSE_SCHEMA: dict = {
-    "type": "object",
-    "properties": {
-        "status": {
-            "type": "string",
-            "enum": ["plan_ready", "need_more_info", "insufficient_data"],
-        },
-        "disclaimer": {"type": "string"},
-        "eligibility": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "scheme": {"type": "string"},
-                    "source_id": {"type": "string"},
-                    "verdict": {
-                        "type": "string",
-                        "enum": ["eligible", "likely_eligible", "likely_ineligible", "unknown"],
-                    },
-                    "matched_criteria": {"type": "array", "items": {"type": "string"}},
-                    "missing_criteria": {"type": "array", "items": {"type": "string"}},
-                    "unknown_criteria": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["scheme", "source_id", "verdict"],
-            },
-        },
-        "documents_needed": {"type": "array", "items": {"type": "string"}},
-        "steps": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "order": {"type": "integer"},
-                    "action": {"type": "string"},
-                    "where": {"type": "string"},
-                    "estimated_time": {"type": "string"},
-                },
-                "required": ["order", "action"],
-            },
-        },
-        "clarifying_questions": {"type": "array", "items": {"type": "string"}},
-    },
-    "required": ["status", "disclaimer"],
-}
 
 
 async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
@@ -688,134 +428,48 @@ async def generate_agent_plan_json(prompt: str) -> tuple[dict, str]:
             raise ValueError("agent plan response is not a JSON object")
         return data
 
-    if openrouter_client is not None:
-        try:
-            response = await with_timeout(
-                asyncio.to_thread(
-                    openrouter_client.chat.completions.create,
-                    model=OPENROUTER_MODEL,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "You output only a single JSON object matching the welfare "
-                                "action-plan schema. No markdown, no commentary."
-                            ),
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.15,
-                ),
-                seconds=AGENT_PLAN_CALL_TIMEOUT_S,
-                step="llm_agent_plan_openrouter",
-            )
-            return _parse_dict(response.choices[0].message.content or ""), _openrouter_provider_label()
-        except Exception as e:
-            logger.warning("openrouter_agent_plan_failed", extra={"error": str(e)[:200]})
-
-    if gemini_model is not None:
-        try:
-            response = await with_timeout(
-                asyncio.to_thread(
-                    gemini_model.generate_content,
-                    prompt,
-                    generation_config={
-                        "response_mime_type": "application/json",
-                        "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
-                        "temperature": 0.15,
-                    },
-                ),
-                seconds=AGENT_PLAN_CALL_TIMEOUT_S,
-                step="llm_agent_plan_gemini",
-            )
-            return _parse_dict(response.text or ""), CHAT_MODEL
-        except Exception as e:
-            logger.warning(
-                "agent_plan_json_primary_failed",
-                extra={"error": str(e)[:200]},
-            )
-            try:
-                response_retry = await with_timeout(
-                    asyncio.to_thread(
-                        gemini_model.generate_content,
-                        prompt,
-                        generation_config={
-                            "response_mime_type": "application/json",
-                            "response_schema": AGENT_PLAN_RESPONSE_SCHEMA,
-                            "temperature": 0.0,
-                        },
-                    ),
-                    seconds=AGENT_PLAN_CALL_TIMEOUT_S,
-                    step="llm_agent_plan_gemini_retry",
-                )
-                return _parse_dict(response_retry.text or ""), CHAT_MODEL
-            except Exception as e2:
-                logger.warning(
-                    "agent_plan_json_retry_failed",
-                    extra={"error": str(e2)[:200]},
-                )
-
-    if groq_client:
-        try:
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You output only a single JSON object matching the welfare action-plan schema. "
-                        "No markdown, no commentary."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ]
-            response = await with_timeout(
-                asyncio.to_thread(
-                    groq_client.chat.completions.create,
-                    model="llama-3.3-70b-versatile",
-                    messages=messages,
-                    response_format={"type": "json_object"},
-                    temperature=0.1,
-                ),
-                seconds=AGENT_PLAN_CALL_TIMEOUT_S,
-                step="llm_agent_plan_groq",
-            )
-            return _parse_dict(response.choices[0].message.content or ""), "groq-llama-3.3"
-        except Exception as ge:
-            logger.warning("agent_plan_json_groq_failed", extra={"error": str(ge)[:200]})
-
-    return {}, CHAT_MODEL
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You output only a single JSON object matching the welfare action-plan schema. "
+                "No markdown, no commentary."
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ]
+    try:
+        response = await with_timeout(
+            asyncio.to_thread(
+                openrouter_client.chat.completions.create,
+                model=OPENROUTER_MODEL,
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.15,
+            ),
+            seconds=AGENT_PLAN_CALL_TIMEOUT_S,
+            step="llm_agent_plan_openrouter",
+        )
+        return _parse_dict(response.choices[0].message.content or ""), f"openrouter/{OPENROUTER_MODEL}"
+    except Exception as e:
+        logger.warning("agent_plan_json_failed", extra={"error": str(e)[:200]})
+    return {}, f"openrouter/{OPENROUTER_MODEL}"
 
 
 async def generate_json_prompt(prompt: str) -> tuple[dict, str]:
     """Single-prompt strict JSON generation helper."""
-    if openrouter_client is not None:
-        try:
-            response = await asyncio.to_thread(
-                openrouter_client.chat.completions.create,
-                model=OPENROUTER_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                temperature=0.1,
-            )
-            parsed = json.loads((response.choices[0].message.content or "{}").strip())
-            return (parsed if isinstance(parsed, dict) else {}), _openrouter_provider_label()
-        except Exception:
-            pass
-    if gemini_model is None:
-        return {}, CHAT_MODEL
     try:
         response = await asyncio.to_thread(
-            gemini_model.generate_content,
-            prompt,
-            generation_config={
-                "response_mime_type": "application/json",
-                "temperature": 0.1,
-            },
+            openrouter_client.chat.completions.create,
+            model=OPENROUTER_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
         )
-        parsed = json.loads((response.text or "{}").strip())
-        return (parsed if isinstance(parsed, dict) else {}), CHAT_MODEL
+        parsed = json.loads((response.choices[0].message.content or "{}").strip())
+        return (parsed if isinstance(parsed, dict) else {}), f"openrouter/{OPENROUTER_MODEL}"
     except Exception:
-        return {}, CHAT_MODEL
+        return {}, f"openrouter/{OPENROUTER_MODEL}"
 
 
 async def rewrite_query(query: str, language: str) -> str:
@@ -830,33 +484,18 @@ async def rewrite_query(query: str, language: str) -> str:
         f"Target language: {language}\n"
         f"User query: {query}"
     )
-    if openrouter_client is not None:
-        try:
-            resp = await with_timeout(
-                asyncio.to_thread(
-                    openrouter_client.chat.completions.create,
-                    model=OPENROUTER_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,
-                ),
-                seconds=REWRITE_QUERY_TIMEOUT_S,
-                step="rewrite_query_openrouter",
-            )
-            rewritten = (resp.choices[0].message.content or "").strip()
-            if rewritten:
-                return rewritten.splitlines()[0].strip()
-            return query
-        except Exception:
-            pass
-    if gemini_model is None:
-        return query
     try:
         resp = await with_timeout(
-            asyncio.to_thread(gemini_model.generate_content, prompt),
+            asyncio.to_thread(
+                openrouter_client.chat.completions.create,
+                model=OPENROUTER_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+            ),
             seconds=REWRITE_QUERY_TIMEOUT_S,
             step="rewrite_query",
         )
-        rewritten = (resp.text or "").strip()
+        rewritten = (resp.choices[0].message.content or "").strip()
         if rewritten:
             return rewritten.splitlines()[0].strip()
         return query

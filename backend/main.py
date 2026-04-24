@@ -13,16 +13,16 @@ from slowapi.errors import RateLimitExceeded
 from backend.config import (
     ALLOWED_ORIGINS,
     ALLOWED_ORIGIN_REGEX,
-    CHAT_MODEL,
     ENV,
     FRONTEND_ORIGIN,
-    GROQ_API_KEY,
     MODERATION_STRICT,
+    OPENROUTER_MODEL,
     QDRANT_URL,
 )
 from backend.logging_setup import setup_logging, trace_id_var
 from backend.rate_limit import limiter
 from backend.routers import error_router, feedback_router, health_router, search_router, voice_router
+from backend.services import mongo_service
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -32,9 +32,10 @@ logger = logging.getLogger(__name__)
 async def _lifespan(app: FastAPI):
     qdrant_preview = (QDRANT_URL or "")[:20] + ("..." if len(QDRANT_URL or "") > 20 else "")
     print("\n[STARTUP] SahayakSetu - Intelligence Activated")
-    print(f"   Primary: {CHAT_MODEL}")
-    print(f"   Fallback: {'Groq-Llama-3.3' if GROQ_API_KEY else 'None'}")
+    print(f"   LLM: openrouter/{OPENROUTER_MODEL}")
     print(f"   RAG: Qdrant @ {qdrant_preview}")
+    await mongo_service.ensure_indexes()
+    print(f"   Store: MongoDB ({mongo_service.MONGODB_DB})")
     print("   --- Policy ---")
     if MODERATION_STRICT:
         print("   MODERATION_STRICT: on (classifier errors -> block)")
@@ -44,8 +45,41 @@ async def _lifespan(app: FastAPI):
     yield
 
 
+OPENAPI_DESCRIPTION = """
+Multilingual voice + text RAG API for Indian government welfare schemes.
+
+Endpoints fall into five groups:
+
+- **search** — POST `/api/search` (JSON) and `/api/search/stream` (NDJSON).
+- **health** — `/health`, `/ready`, `/ping`, `/` for liveness and readiness.
+- **voice** — `/vapi-webhook` receives Vapi assistant tool-call callbacks (HMAC-signed in production).
+- **feedback** — `POST /api/feedback` records 👍/👎 reactions with trace correlation.
+- **telemetry** — `POST /api/error` records client-side error reports.
+
+Every response carries an `X-Trace-Id` header. Pass it back via `X-Trace-Id` on
+subsequent requests for cross-request correlation. Error responses follow
+FastAPI's default `{"detail": ...}` shape.
+""".strip()
+
+OPENAPI_TAGS = [
+    {"name": "search", "description": "Primary RAG endpoints (JSON + NDJSON streaming)."},
+    {"name": "health", "description": "Liveness + readiness + lightweight keep-alive."},
+    {"name": "voice", "description": "Vapi assistant webhook. HMAC-signed in production."},
+    {"name": "feedback", "description": "User 👍/👎 reactions tied to trace IDs."},
+    {"name": "telemetry", "description": "Client-side error reports for observability."},
+]
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="SahayakSetu API", lifespan=_lifespan)
+    app = FastAPI(
+        title="SahayakSetu API",
+        version="1.0.0",
+        description=OPENAPI_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
+        contact={"name": "SahayakSetu", "url": "https://sahayaksetu.vercel.app"},
+        license_info={"name": "Proprietary — Hackblr 2026"},
+        lifespan=_lifespan,
+    )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

@@ -1,16 +1,6 @@
 {
-  "version": 2,
-  "name": "sahayaksetu",
-  "builds": [
-    {
-      "src": "frontend/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/frontend/$1"
-    }
-  ]
+  "buildCommand": "cd frontend && npm ci && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "echo skip-root-install",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

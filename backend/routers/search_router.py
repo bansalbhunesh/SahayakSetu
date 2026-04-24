@@ -12,8 +12,25 @@ from backend.services.search_execution import execute_search
 
 router = APIRouter(tags=["search"])
 
+_ERROR_RESPONSES: dict[int | str, dict] = {
+    422: {"description": "Validation error — query missing, wrong type, or too long."},
+    429: {"description": "Rate limit exceeded. Retry after `Retry-After` seconds."},
+    500: {"description": "Unhandled server error. The `detail` field includes a reference ID."},
+    503: {"description": "Upstream dependency unavailable (Qdrant, Redis, or LLM)."},
+}
 
-@router.post("/api/search")
+
+@router.post(
+    "/api/search",
+    response_model=SearchResponse,
+    summary="Search welfare schemes",
+    description=(
+        "Runs the full RAG pipeline: moderation → query rewrite → Qdrant retrieval → "
+        "LLM generation. Returns structured answer with grounded citations, near-miss "
+        "hints, and an optional action plan when `include_plan=true`."
+    ),
+    responses=_ERROR_RESPONSES,
+)
 @limiter.limit("10/minute;100/hour")
 async def handle_search(request: Request, search_request: SearchRequest) -> SearchResponse:
     try:
@@ -58,7 +75,16 @@ async def _search_ndjson_stream(search_request: SearchRequest):
     yield _ndjson_line({"type": "complete", "data": result.model_dump(mode="json")})
 
 
-@router.post("/api/search/stream")
+@router.post(
+    "/api/search/stream",
+    summary="Search welfare schemes (NDJSON stream)",
+    description=(
+        "Same pipeline as `/api/search` but emits newline-delimited JSON events "
+        "(`meta`, `phase`, `token`, `complete`, `error`) so clients can show progress "
+        "and render tokens as they arrive. Response media type is `application/x-ndjson`."
+    ),
+    responses={**_ERROR_RESPONSES, 200: {"content": {"application/x-ndjson": {}}}},
+)
 @limiter.limit("10/minute;100/hour")
 async def handle_search_stream(request: Request, search_request: SearchRequest):
     return StreamingResponse(
